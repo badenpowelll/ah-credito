@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import { BancoInput, CepField, Field, Modal, MoneyInput, StatusBadge, ZapLinks } from './ui'
 import { Documentos, ListaDocs, SeletorArquivos, enviarVarios, useDocumentos } from './Documentos'
+import { OpcoesData, PainelCalculo, useCalculo } from './Parcelamento'
 import { useStore } from '../lib/store'
 import { brl, fmtData, moedaCampo, parseMoeda, statusDe, uid } from '../lib/utils'
 
 const VAZIO = {
   nome: '', rg: '', email: '', telefone: '', cpf: '', cep: '', endereco: '', numero: '', complemento: '', cidade: '', tipoEndereco: 'Residencial',
-  valorEmprestado: '', valorParcela: '', jurosPct: '', diaVencimento: '10',
+  valorEmprestado: '', valorParcela: '', jurosPct: '', diaVencimento: '10', parcelas: '', dataBase: '', modoData: 'inicio',
   banco: '', agencia: '', conta: '', tipoConta: 'Corrente', titularConta: '', tipoChavePix: 'CPF', chavePix: '', obs: '',
 }
 const TIPOS_PIX = ['CPF', 'CNPJ', 'Telefone', 'E-mail', 'Aleatória']
@@ -15,7 +16,16 @@ export function DebtorForm({ inicial, onClose }) {
   const { addDebtor, updateDebtor } = useStore()
   const idRef = useRef(inicial?.id || uid())
   const salvoRef = useRef(Boolean(inicial?.id))
-  const [f, setF] = useState(inicial ? { ...VAZIO, ...inicial, valorEmprestado: moedaCampo(inicial.valorEmprestado), valorParcela: moedaCampo(inicial.valorParcela) } : VAZIO)
+  const [f, setF] = useState(inicial
+    ? {
+        ...VAZIO, ...inicial,
+        valorEmprestado: moedaCampo(inicial.valorEmprestado), valorParcela: moedaCampo(inicial.valorParcela),
+        parcelas: inicial.parcelas ? String(inicial.parcelas) : '',
+        dataBase: inicial.dataContrato || inicial.primeiroVencimento || '',
+        modoData: inicial.dataContrato ? 'inicio' : 'parcela',
+      }
+    : VAZIO)
+  const calc = useCalculo({ valor: f.valorEmprestado, parcela: f.valorParcela, n: f.parcelas, data: f.dataBase, modo: f.modoData })
   const [arquivos, setArquivos] = useState([])
   const [enviando, setEnviando] = useState('')
   const [erro, setErro] = useState('')
@@ -27,12 +37,24 @@ export function DebtorForm({ inicial, onClose }) {
   const salvar = async (e) => {
     e.preventDefault()
     setErro('')
+    const temParcelamento = Boolean(f.parcelas || f.dataBase)
+    if (temParcelamento && !calc) return setErro('Para calcular as parcelas, preencha valor emprestado, valor da parcela, quantidade de parcelas e a data (ou apague a quantidade e a data para cadastrar sem parcelamento).')
+    if (temParcelamento && calc.semJuros) return setErro('As parcelas somam menos que o valor emprestado. Confira o valor da parcela.')
+    const { dataBase, modoData, ...resto } = f
     const d = {
-      ...f,
+      ...resto,
       valorEmprestado: parseMoeda(f.valorEmprestado),
       valorParcela: parseMoeda(f.valorParcela),
-      jurosPct: num(f.jurosPct),
-      diaVencimento: Math.min(31, Math.max(1, parseInt(f.diaVencimento) || 1)),
+      ...(temParcelamento
+        ? {
+            parcelas: calc.n, jurosPct: calc.taxaMes, diaVencimento: Number(calc.primeira.slice(8, 10)),
+            primeiroVencimento: calc.primeira, ultimoVencimento: calc.ultima, totalAPagar: calc.total,
+            valorJuros: calc.juros, jurosPctTotal: calc.jurosPctTotal, dataContrato: calc.inicio,
+          }
+        : {
+            parcelas: null, primeiroVencimento: null, ultimoVencimento: null, totalAPagar: null, valorJuros: null, jurosPctTotal: null, dataContrato: null,
+            jurosPct: num(f.jurosPct), diaVencimento: Math.min(31, Math.max(1, parseInt(f.diaVencimento) || 1)),
+          }),
     }
     if (salvoRef.current) updateDebtor(idRef.current, d)
     else { addDebtor({ ...d, id: idRef.current }); salvoRef.current = true }
@@ -65,11 +87,20 @@ export function DebtorForm({ inicial, onClose }) {
           <Field label="Complemento"><input value={f.complemento} onChange={set('complemento')} /></Field>
           <Field label="Cidade/UF"><input value={f.cidade} onChange={set('cidade')} /></Field>
 
-          <h4 className="full sec">Empréstimo</h4>
+          <h4 className="full sec">Empréstimo e parcelas</h4>
           <Field label="Valor emprestado (R$)"><MoneyInput value={f.valorEmprestado} onChange={(v) => setF((x) => ({ ...x, valorEmprestado: v }))} /></Field>
-          <Field label="Valor da parcela mensal (R$)"><MoneyInput value={f.valorParcela} onChange={(v) => setF((x) => ({ ...x, valorParcela: v }))} /></Field>
-          <Field label="Juros (% ao mês)"><input inputMode="decimal" value={f.jurosPct} onChange={set('jurosPct')} /></Field>
-          <Field label="Dia de vencimento"><input type="number" min="1" max="31" value={f.diaVencimento} onChange={set('diaVencimento')} /></Field>
+          <Field label="Valor da parcela (R$)"><MoneyInput value={f.valorParcela} onChange={(v) => setF((x) => ({ ...x, valorParcela: v }))} /></Field>
+          <Field label="Quantidade de parcelas"><input type="number" min="1" max="120" inputMode="numeric" placeholder="Ex.: 12" value={f.parcelas} onChange={set('parcelas')} /></Field>
+          <Field label="Data (clique para abrir o calendário)"><input type="date" value={f.dataBase} onChange={set('dataBase')} /></Field>
+          <div className="full"><OpcoesData modo={f.modoData} onChange={(m) => setF((x) => ({ ...x, modoData: m }))} nome="modoDataCliente" /></div>
+          <div className="full"><PainelCalculo calc={calc} /></div>
+          {!(f.parcelas || f.dataBase) && (
+            <>
+              <Field label="Dia de vencimento"><input type="number" min="1" max="31" value={f.diaVencimento} onChange={set('diaVencimento')} /></Field>
+              <Field label="Juros (% ao mês)"><input inputMode="decimal" value={f.jurosPct} onChange={set('jurosPct')} /></Field>
+              <div className="muted full" style={{ fontSize: 12 }}>Sem parcelamento: informe o dia do vencimento e os juros à mão. Ao preencher a quantidade de parcelas e a data, o vencimento e os juros são calculados sozinhos.</div>
+            </>
+          )}
 
           <h4 className="full sec">Dados bancários do cliente</h4>
           <Field label="Banco"><BancoInput value={f.banco} onChange={(v) => setF((x) => ({ ...x, banco: v }))} /></Field>

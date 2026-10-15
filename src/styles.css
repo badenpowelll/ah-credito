@@ -175,5 +175,5 @@ button:disabled { opacity: .5; cursor: not-allowed; }
 .calc-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; }
 .calc-grade small { display: block; font-size: 11px; }
 .calc-grade b { font-size: 15px; }
-.datas { margin: 6px 0 0 18px; padding: 0; columns: 2; font-size: 12px; font-variant-numeric: tabular-nums; }
+.datas { margin: 6px 0 0; padding: 0; list-style: none; columns: 2; font-size: 12px; font-variant-numeric: tabular-nums; }
 input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.85); cursor: pointer; }

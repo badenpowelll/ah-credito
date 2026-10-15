@@ -112,13 +112,16 @@ export const CAPITULOS = [
       'Clique em Novo Cliente (ou use o submenu Novo Cliente).',
       'Em Dados pessoais, preencha o nome (obrigatório), CPF, RG, telefone/WhatsApp e e-mail.',
       'Em Endereço, digite o CEP: ao completar os 8 números, o sistema busca sozinho a rua, o bairro e a cidade. Complete o número e o complemento.',
-      'Em Empréstimo, informe valor emprestado, valor da parcela mensal, juros (% ao mês) e o dia de vencimento. Nos valores em reais, digite só os números: 1000 vira 1.000,00.',
+      'Em Empréstimo e parcelas, informe o valor emprestado, o valor da parcela e a quantidade de parcelas. Nos valores em reais, digite só os números: 1000 vira 1.000,00.',
+      'Clique no campo Data para abrir o calendário e escolha o dia. Marque se a data é o início do contrato (a 1ª parcela vence 1 mês depois) ou o vencimento da 1ª parcela.',
+      'O quadro "Cálculo automático" mostra, sem você digitar nada: total a pagar, valor dos juros, juros em % no total, taxa ao mês, 1ª e última parcela e todas as datas. Exemplo: R$ 15.000,00 em 12x de R$ 1.500,00 dá total de R$ 18.000,00, juros de R$ 3.000,00 (20%) e cerca de 2,92% ao mês. O dia do vencimento também é definido sozinho.',
+      'Se o cliente não tem parcelamento fixo, deixe a quantidade e a data em branco: aparecem os campos Dia de vencimento e Juros (% ao mês) para preencher à mão.',
     ],
     imagens: [
       ['08-novo-cliente-dados.jpg', 'Formulário de novo cliente: dados pessoais e endereço'],
       ['09-novo-cliente-emprestimo.jpg', 'Formulário de novo cliente: seção Empréstimo'],
     ],
-    dica: 'Se o CEP não for encontrado, o sistema avisa e você preenche o endereço à mão.',
+    dica: 'Se o CEP não for encontrado, o sistema avisa e você preenche o endereço à mão. Se as parcelas somarem menos que o valor emprestado, o sistema avisa e não salva até você corrigir.',
   },
   {
     id: 'emp-banco', grupo: 'emprestimos', curto: 'Dados bancários', titulo: 'Dados bancários, PIX e documentos no cadastro',
