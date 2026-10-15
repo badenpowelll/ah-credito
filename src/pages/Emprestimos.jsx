@@ -6,7 +6,8 @@ import { CalendarioTab, LixeiraModal, MapaTab, PixTab, RoboCobranca, RoboCredito
 import { ClientesTab, DebtorDetail, DebtorForm, ResumoCarteira } from '../components/Clientes'
 import { useStore } from '../lib/store'
 import { filaDeCobranca, CFG_PADRAO } from '../lib/cobranca'
-import { baixarArquivo, statusDe, useLocalStorage } from '../lib/utils'
+import { exportarClientes } from '../lib/planilha'
+import { useLocalStorage } from '../lib/utils'
 
 const ABAS = [
   ['devedores', '👥 Clientes'],
@@ -44,9 +45,7 @@ export default function Emprestimos() {
 
   function baixarRelatorio() {
     if (!debtors.length) return alert('Sem clientes para exportar')
-    const linhas = [['Nome', 'Telefone', 'CPF', 'Endereço', 'Emprestado', 'Parcela', 'Juros %', 'Vencimento', 'Status']]
-    debtors.forEach((d) => linhas.push([d.nome, d.telefone, d.cpf, `${d.endereco || ''} ${d.cidade || ''}`, d.valorEmprestado, d.valorParcela, d.jurosPct, d.diaVencimento, statusDe(d)]))
-    baixarArquivo('ah-credito-clientes.csv', linhas.map((l) => l.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\n'))
+    exportarClientes(debtors)
   }
   const imprimir = () => window.print()
 
