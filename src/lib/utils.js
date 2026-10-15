@@ -55,20 +55,10 @@ const comTimeout = (url, ms = 6000, opts) => {
   return fetch(url, { ...opts, signal: c.signal }).finally(() => clearTimeout(t))
 }
 
-/** Busca o endereço pelo CEP (ViaCEP, com BrasilAPI como reserva). Retorna null se não achar. */
+/** Busca o endereço pelo CEP na BrasilAPI (v2, traz coordenadas), com ViaCEP como reserva. Retorna null se não achar. */
 export async function buscaCep(cep) {
   const c = soDigitos(cep)
   if (c.length !== 8) return null
-  try {
-    const r = await (await comTimeout(`https://viacep.com.br/ws/${c}/json/`)).json()
-    if (!r.erro) {
-      return {
-        endereco: [r.logradouro, r.bairro].filter(Boolean).join(', '),
-        cidade: `${r.localidade}/${r.uf}`,
-        cidadeNome: r.localidade, uf: r.uf, bairro: r.bairro, logradouro: r.logradouro,
-      }
-    }
-  } catch { /* tenta a reserva */ }
   try {
     const r = await (await comTimeout(`https://brasilapi.com.br/api/cep/v2/${c}`)).json()
     if (r.city) {
@@ -78,6 +68,16 @@ export async function buscaCep(cep) {
         cidade: `${r.city}/${r.state}`,
         cidadeNome: r.city, uf: r.state, bairro: r.neighborhood, logradouro: r.street,
         lat: co?.latitude ? +co.latitude : undefined, lng: co?.longitude ? +co.longitude : undefined,
+      }
+    }
+  } catch { /* tenta a reserva */ }
+  try {
+    const r = await (await comTimeout(`https://viacep.com.br/ws/${c}/json/`)).json()
+    if (!r.erro) {
+      return {
+        endereco: [r.logradouro, r.bairro].filter(Boolean).join(', '),
+        cidade: `${r.localidade}/${r.uf}`,
+        cidadeNome: r.localidade, uf: r.uf, bairro: r.bairro, logradouro: r.logradouro,
       }
     }
   } catch { /* sem resultado */ }
