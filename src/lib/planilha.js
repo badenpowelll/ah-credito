@@ -18,6 +18,12 @@ export const COLUNAS = [
   { chave: 'valorParcela', titulo: 'Valor da parcela mensal (R$)', exemplo: '200,00', largura: 26 },
   { chave: 'jurosPct', titulo: 'Juros (% ao mês)', exemplo: '20', largura: 16 },
   { chave: 'diaVencimento', titulo: 'Dia de vencimento *', exemplo: '10', largura: 18 },
+  { chave: 'banco', titulo: 'Banco', exemplo: '341 - Itaú Unibanco S.A.', largura: 28 },
+  { chave: 'agencia', titulo: 'Agência', exemplo: '1234', largura: 10 },
+  { chave: 'conta', titulo: 'Conta (com dígito)', exemplo: '12345-6', largura: 18 },
+  { chave: 'tipoConta', titulo: 'Tipo de conta', exemplo: 'Corrente', largura: 14 },
+  { chave: 'titularConta', titulo: 'Titular da conta', exemplo: 'Maria da Silva', largura: 24 },
+  { chave: 'tipoChavePix', titulo: 'Tipo da chave PIX', exemplo: 'Telefone', largura: 16 },
   { chave: 'chavePix', titulo: 'Chave PIX do cliente', exemplo: '84999990000', largura: 22 },
   { chave: 'obs', titulo: 'Observações', exemplo: '', largura: 30 },
 ]
@@ -86,6 +92,12 @@ function chaveDoTitulo(titulo) {
   if (t.includes('parcela')) return 'valorParcela'
   if (t.includes('juros')) return 'jurosPct'
   if (t.includes('vencimento')) return 'diaVencimento'
+  if (t.startsWith('banco')) return 'banco'
+  if (t.includes('agencia')) return 'agencia'
+  if (t.includes('titular')) return 'titularConta'
+  if (t.includes('tipo') && t.includes('conta')) return 'tipoConta'
+  if (t.startsWith('conta')) return 'conta'
+  if (t.includes('tipo') && t.includes('pix')) return 'tipoChavePix'
   if (t.includes('pix')) return 'chavePix'
   if (t.includes('observ')) return 'obs'
   return null
@@ -128,6 +140,9 @@ export async function lerPlanilha(arquivo, existentes = []) {
       tipoEndereco: /trab/i.test(texto(bruto.tipoEndereco)) ? 'Trabalho' : 'Residencial',
       valorEmprestado: dinheiro(bruto.valorEmprestado ?? 0), valorParcela: dinheiro(bruto.valorParcela ?? 0),
       jurosPct: percentual(bruto.jurosPct ?? 0), diaVencimento: dia, chavePix: texto(bruto.chavePix), obs: texto(bruto.obs),
+      banco: texto(bruto.banco), agencia: texto(bruto.agencia), conta: texto(bruto.conta), titularConta: texto(bruto.titularConta),
+      tipoConta: /poup/i.test(texto(bruto.tipoConta)) ? 'Poupança' : /pag/i.test(texto(bruto.tipoConta)) ? 'Pagamento' : 'Corrente',
+      tipoChavePix: ['CPF', 'CNPJ', 'Telefone', 'E-mail', 'Aleatória'].find((t) => t.toLowerCase() === texto(bruto.tipoChavePix).toLowerCase()) || 'CPF',
     }
     let situacao = 'ok'
     let motivo = ''

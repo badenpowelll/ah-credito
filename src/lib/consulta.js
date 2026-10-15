@@ -21,7 +21,11 @@ function fichaCliente(d, logs) {
     `Endereço: ${[d.endereco, d.numero, d.complemento, d.cidade, d.cep && 'CEP ' + d.cep].filter(Boolean).join(', ') || 'não cadastrado'}`,
     `Emprestado: ${brl(d.valorEmprestado)} · Parcela mensal: ${brl(d.valorParcela)} · Juros: ${d.jurosPct || 0}% a.m.`,
     `Vencimento: dia ${d.diaVencimento} · Meses pagos: ${(d.pagos || []).join(', ') || 'nenhum'}`,
-    d.chavePix ? `PIX do cliente: ${d.chavePix}` : null,
+    d.cpf ? `CPF: ${d.cpf}${d.rg ? ` · RG: ${d.rg}` : ''}${d.email ? ` · E-mail: ${d.email}` : ''}` : null,
+    d.banco || d.agencia || d.conta
+      ? `Banco: ${[d.banco, d.agencia && `ag. ${d.agencia}`, d.conta && `conta ${d.conta}${d.tipoConta ? ` (${d.tipoConta})` : ''}`, d.titularConta && `titular ${d.titularConta}`].filter(Boolean).join(' · ')}`
+      : null,
+    d.chavePix ? `PIX do cliente${d.tipoChavePix ? ` (${d.tipoChavePix})` : ''}: ${d.chavePix}` : null,
     nl.length ? 'Últimas anotações:\n' + nl.map((l) => `  - ${fmtData(l.data)}: ${l.texto}`).join('\n') : null,
   ].filter(Boolean).join('\n')
 }

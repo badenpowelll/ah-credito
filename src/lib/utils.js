@@ -170,3 +170,5 @@ export function useBancos() {
   }, [])
   return bancos
 }
+
+export const fmtBytes = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`)

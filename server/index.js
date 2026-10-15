@@ -119,7 +119,63 @@ app.delete('/api/c/:colecao/:id', exigeLogin, asyncRota(async (req, res) => {
   const { colecao, id } = req.params
   if (!COLECOES.has(colecao)) return res.status(404).json({ erro: 'Coleção inválida.' })
   await q('DELETE FROM itens WHERE colecao = $1 AND id = $2', [colecao, id])
+  if (colecao === 'debtors') await q('DELETE FROM documentos WHERE cliente_id = $1', [id]) // exclusão definitiva leva os documentos junto
   res.json({ ok: true })
+}))
+
+/* ---------- documentos pessoais dos clientes (guardados no Postgres) ---------- */
+const MAX_DOC = 10 * 1024 * 1024 // 10 MB por arquivo
+const COTA_CLIENTE = 100 * 1024 * 1024 // 100 MB por cliente
+const EXT_BLOQUEADAS = new Set(['exe', 'bat', 'cmd', 'com', 'scr', 'msi', 'js', 'mjs', 'vbs', 'vbe', 'ps1', 'sh', 'jar', 'dll', 'html', 'htm', 'svg', 'php', 'apk'])
+const VER_NO_NAVEGADOR = /^(image\/(jpeg|png|gif|webp)|application\/pdf)$/
+const corpoBruto = express.raw({ type: () => true, limit: MAX_DOC + 1024 })
+const CARACTERES_INVALIDOS = new RegExp('[\\\\/:*?"<>|\\u0000-\\u001f]', 'g')
+
+const limpaNome = (n) => String(n || 'documento').replace(CARACTERES_INVALIDOS, '_').trim().slice(0, 150) || 'documento'
+const extensao = (n) => (n.includes('.') ? n.split('.').pop().toLowerCase() : '')
+const infoDoc = (d) => ({ id: d.id, nome: d.nome, tipo: d.tipo, tamanho: Number(d.tamanho), criadoEm: d.criado_em })
+
+app.get('/api/clientes/:id/documentos', exigeLogin, asyncRota(async (req, res) => {
+  const r = await q('SELECT id, nome, tipo, tamanho, criado_em FROM documentos WHERE cliente_id = $1 ORDER BY criado_em DESC', [req.params.id])
+  res.json(r.rows.map(infoDoc))
+}))
+
+// O arquivo vai no corpo da requisição; nome e tipo vão na URL (?nome=...&tipo=...).
+app.post('/api/clientes/:id/documentos', exigeLogin, corpoBruto, asyncRota(async (req, res) => {
+  const nome = limpaNome(req.query.nome)
+  const tipo = String(req.query.tipo || 'application/octet-stream').slice(0, 100)
+  const dados = req.body
+  if (!Buffer.isBuffer(dados) || !dados.length) return res.status(400).json({ erro: 'Arquivo vazio.' })
+  if (dados.length > MAX_DOC) return res.status(413).json({ erro: 'Arquivo maior que 10 MB.' })
+  if (EXT_BLOQUEADAS.has(extensao(nome))) return res.status(400).json({ erro: 'Este tipo de arquivo não é permitido.' })
+  const usado = await q('SELECT COALESCE(SUM(tamanho), 0)::bigint AS total FROM documentos WHERE cliente_id = $1', [req.params.id])
+  if (Number(usado.rows[0].total) + dados.length > COTA_CLIENTE) return res.status(413).json({ erro: 'Limite de 100 MB de documentos deste cliente atingido.' })
+  const id = crypto.randomBytes(12).toString('hex')
+  await q('INSERT INTO documentos (id, cliente_id, nome, tipo, tamanho, dados) VALUES ($1, $2, $3, $4, $5, $6)', [id, req.params.id, nome, tipo, dados.length, dados])
+  res.json({ id, nome, tipo, tamanho: dados.length })
+}))
+
+app.get('/api/documentos/:id', exigeLogin, asyncRota(async (req, res) => {
+  const r = await q('SELECT nome, tipo, dados FROM documentos WHERE id = $1', [req.params.id])
+  const d = r.rows[0]
+  if (!d) return res.status(404).json({ erro: 'Documento não encontrado.' })
+  const ver = req.query.ver === '1' && VER_NO_NAVEGADOR.test(d.tipo)
+  res.set({
+    'Content-Type': ver ? d.tipo : 'application/octet-stream',
+    'Content-Disposition': `${ver ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(d.nome)}`,
+    'Cache-Control': 'private, no-store',
+  })
+  res.send(Buffer.from(d.dados))
+}))
+
+app.delete('/api/documentos/:id', exigeLogin, asyncRota(async (req, res) => {
+  await q('DELETE FROM documentos WHERE id = $1', [req.params.id])
+  res.json({ ok: true })
+}))
+
+app.get('/api/armazenamento', exigeLogin, asyncRota(async (req, res) => {
+  const r = await q('SELECT COALESCE(SUM(tamanho), 0)::bigint AS total, COUNT(*)::int AS n FROM documentos')
+  res.json({ bytesDocumentos: Number(r.rows[0].total), documentos: r.rows[0].n })
 }))
 
 /* ---------- link de cadastro do cliente ---------- */

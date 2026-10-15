@@ -80,7 +80,7 @@ export function StoreProvider({ dados, onSessaoExpirada, children }) {
   const deleteTransaction = (id) => setTransactions((l) => l.filter((x) => x.id !== id))
 
   const patch = (id, p) => setDebtors((l) => l.map((x) => (x.id === id ? { ...x, ...p } : x)))
-  const addDebtor = (d) => setDebtors((l) => [{ pagos: [], criadoEm: hojeISO(), ...d, id: uid() }, ...l])
+  const addDebtor = (d) => setDebtors((l) => [{ pagos: [], criadoEm: hojeISO(), ...d, id: d.id || uid() }, ...l])
   const updateDebtor = (id, d) => patch(id, d)
   const trashDebtor = (id) => patch(id, { deletedAt: hojeISO() })
   const restoreDebtor = (id) => patch(id, { deletedAt: null })

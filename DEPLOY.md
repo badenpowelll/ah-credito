@@ -4,7 +4,9 @@ O sistema é um serviço Node único: entrega o site e a API, e guarda tudo no P
 
 ## Como funciona
 - Site (React) e API (`server/index.js`) saem do mesmo endereço, sem CORS.
-- Tabelas criadas sozinhas no primeiro início: `usuarios`, `itens` (clientes, movimentações, histórico e chaves PIX) e `links_cadastro`.
+- Tabelas criadas sozinhas no primeiro início: `usuarios`, `itens` (clientes, movimentações, histórico e chaves PIX), `links_cadastro` e `documentos`.
+- Documentos pessoais (PDF, Word, fotos e outros) ficam no próprio Postgres (coluna `bytea`), vinculados ao cliente. Limites: 10 MB por arquivo e 100 MB por cliente; executáveis e HTML/SVG são bloqueados; só quem está logado baixa. Fotos grandes são reduzidas no navegador antes do envio.
+- **Espaço:** os documentos são o que mais ocupa o 1 GB. Com fotos reduzidas (cerca de 0,5 a 1 MB cada), cabem centenas de documentos; PDFs grandes consomem mais. Acompanhe o uso no painel da Railway. Documentos de clientes excluídos definitivamente são apagados junto.
 - Login: usuário e senha guardados com hash (bcrypt) e sessão em cookie `httpOnly`.
 - Link de cadastro do cliente: código aleatório de uso único guardado no banco. O cadastro preenchido cai direto em Clientes.
 - O espaço de 1 GB do Postgres comporta muitos milhares de clientes e movimentações (cada registro ocupa poucos KB).

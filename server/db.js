@@ -24,6 +24,16 @@ CREATE TABLE IF NOT EXISTS links_cadastro (
   criado_em timestamptz NOT NULL DEFAULT now(),
   usado_em timestamptz
 );
+CREATE TABLE IF NOT EXISTS documentos (
+  id text PRIMARY KEY,
+  cliente_id text NOT NULL,
+  nome text NOT NULL,
+  tipo text NOT NULL,
+  tamanho integer NOT NULL,
+  dados bytea NOT NULL,
+  criado_em timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS documentos_cliente_idx ON documentos (cliente_id, criado_em DESC);
 `
 
 /**

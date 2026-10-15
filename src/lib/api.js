@@ -29,3 +29,20 @@ export const api = {
   put: (url, corpo) => chamar('PUT', url, corpo),
   del: (url) => chamar('DELETE', url),
 }
+
+/** Envia um arquivo (PDF, DOCX, foto, etc.) para o banco, vinculado ao cliente. */
+export async function enviarArquivo(clienteId, arquivo) {
+  const url = `/api/clientes/${encodeURIComponent(clienteId)}/documentos?nome=${encodeURIComponent(arquivo.name)}&tipo=${encodeURIComponent(arquivo.type || 'application/octet-stream')}`
+  let r
+  try {
+    r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: arquivo, credentials: 'same-origin' })
+  } catch {
+    throw new Error('Sem conexão com o servidor.')
+  }
+  let dados = null
+  try { dados = await r.json() } catch { /* sem corpo */ }
+  if (!r.ok) throw new Error(dados?.erro || 'Falha ao enviar o arquivo.')
+  return dados
+}
+
+export const urlDocumento = (id, ver = false) => `/api/documentos/${encodeURIComponent(id)}${ver ? '?ver=1' : ''}`
