@@ -1,6 +1,7 @@
 import logo from '../assets/logo.jpg'
 import { useState } from 'react'
 import { sair } from './Login'
+import { useStore } from '../lib/store'
 import { NavLink, useLocation, useSearchParams } from 'react-router-dom'
 
 /** Exatamente 2 menus, cada um com seus submenus (itens = abas/seções das páginas). */
@@ -43,6 +44,7 @@ export const MENUS = [
 export default function Layout({ children }) {
   const loc = useLocation()
   const [sp] = useSearchParams()
+  const { erroSync } = useStore()
   const [open, setOpen] = useState(false)
   const [expanded, setExpanded] = useState({ '/': true, '/emprestimos': true })
 
@@ -105,7 +107,10 @@ export default function Layout({ children }) {
           <img src={logo} alt="" className="top-logo" />
           <strong>AH Crédito</strong>
         </header>
-        <main className="content">{children}</main>
+        <main className="content">
+          {erroSync && <div className="banner" role="alert" style={{ borderColor: 'var(--red)' }}>{erroSync}</div>}
+          {children}
+        </main>
       </div>
     </div>
   )

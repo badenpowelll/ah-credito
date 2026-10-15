@@ -1,33 +1,6 @@
 import { brl, soDigitos } from './utils'
 
 export const EMPRESA = 'AH Crédito'
-const PREFIXO_HASH = '#cad-'
-const PREFIXO_CODIGO = 'AHC1:'
-
-const b64 = (obj) => btoa(unescape(encodeURIComponent(JSON.stringify(obj)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-const desb64 = (s) => {
-  const t = s.replace(/-/g, '+').replace(/_/g, '/')
-  return JSON.parse(decodeURIComponent(escape(atob(t + '='.repeat((4 - (t.length % 4)) % 4)))))
-}
-
-/** Link único: os valores do empréstimo viajam dentro do próprio token (sem servidor). */
-export function gerarLink(dados) {
-  return location.href.split('#')[0] + PREFIXO_HASH + b64(dados)
-}
-export function lerTokenDoHash(hash = location.hash) {
-  if (!hash.startsWith(PREFIXO_HASH)) return null
-  try { return desb64(hash.slice(PREFIXO_HASH.length)) } catch { return null }
-}
-
-/** Código que o cliente devolve ao final do cadastro; a empresa cola em "Importar cadastro". */
-export const gerarCodigo = (obj) => PREFIXO_CODIGO + b64(obj)
-export function lerCodigo(texto) {
-  const i = texto.indexOf(PREFIXO_CODIGO)
-  if (i < 0) return null
-  const m = /^[A-Za-z0-9_-]+/.exec(texto.slice(i + PREFIXO_CODIGO.length))
-  try { return m ? desb64(m[0]) : null } catch { return null }
-}
-
 export const saudacao = (h = new Date().getHours()) => (h < 12 ? '☀️ Bom dia!' : h < 18 ? '🌤️ Boa tarde!' : '🌙 Boa noite!')
 
 export const msgCadastro = (link) =>

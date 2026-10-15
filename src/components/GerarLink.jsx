@@ -1,19 +1,29 @@
 import { useState } from 'react'
 import { Field, Modal, MoneyInput, ZapLinks } from './ui'
-import { gerarLink, lerCodigo, msgCadastro, telefoneWhats } from '../lib/cadastro'
+import { api } from '../lib/api'
+import { msgCadastro } from '../lib/cadastro'
 import { useStore } from '../lib/store'
-import { brl, parseMoeda, useLocalStorage } from '../lib/utils'
+import { brl, parseMoeda } from '../lib/utils'
 import { baixarModelo, lerPlanilha } from '../lib/planilha'
 
 export default function GerarLink({ onClose }) {
-  const [whats, setWhats] = useLocalStorage('ahc:whats-empresa', '')
   const [f, setF] = useState({ valor: '', juros: '', dia: '', fixo: false })
   const [link, setLink] = useState('')
   const [copiado, setCopiado] = useState('')
+  const [erro, setErro] = useState('')
+  const [gerando, setGerando] = useState(false)
 
-  const gerar = (e) => {
+  const gerar = async (e) => {
     e.preventDefault()
-    setLink(gerarLink({ v: parseMoeda(f.valor), j: parseMoeda(f.juros), d: Math.min(31, Math.max(1, parseInt(f.dia) || 1)), f: f.fixo, w: telefoneWhats(whats), t: Date.now().toString(36) }))
+    setErro('')
+    setGerando(true)
+    try {
+      const { token } = await api.post('/links', { v: parseMoeda(f.valor), j: parseMoeda(f.juros), d: parseInt(f.dia, 10) || 1, f: f.fixo })
+      setLink(location.href.split('#')[0] + '#cad-' + token)
+    } catch (err) {
+      setErro(err.message)
+    }
+    setGerando(false)
   }
   const copiar = async () => {
     try { await navigator.clipboard.writeText(link); setCopiado('Link copiado!') } catch { setCopiado('Selecione o link e copie (Ctrl+C).') }
@@ -21,7 +31,9 @@ export default function GerarLink({ onClose }) {
 
   return (
     <Modal title="Gerar Link de Cadastro" onClose={onClose}>
-      <p className="muted" style={{ marginTop: -6 }}>Defina os valores do empréstimo e gere um link único para o cliente.</p>
+      <p className="muted" style={{ marginTop: -6 }}>
+        Defina os valores do empréstimo e gere um link único para o cliente. O cadastro preenchido entra direto em Clientes.
+      </p>
       {!link ? (
         <form onSubmit={gerar} className="form" style={{ gridTemplateColumns: '1fr' }}>
           <Field label="Valor Emprestado (R$) *"><MoneyInput value={f.valor} onChange={(v) => setF((x) => ({ ...x, valor: v }))} required /></Field>
@@ -32,10 +44,8 @@ export default function GerarLink({ onClose }) {
             </label>
             <input type="number" min="1" max="31" placeholder="1-31" value={f.dia} onChange={(e) => setF({ ...f, dia: e.target.value })} required />
           </Field>
-          <Field label="Seu WhatsApp (para receber o cadastro preenchido)">
-            <input placeholder="(84) 90000-0000" value={whats} onChange={(e) => setWhats(e.target.value)} />
-          </Field>
-          <button className="btn primary" style={{ justifyContent: 'center', padding: 11 }}>Gerar Novo Link</button>
+          {erro && <div className="neg" role="alert">{erro}</div>}
+          <button className="btn primary" disabled={gerando} style={{ justifyContent: 'center', padding: 11 }}>{gerando ? 'Gerando…' : 'Gerar Novo Link'}</button>
         </form>
       ) : (
         <div className="form" style={{ gridTemplateColumns: '1fr' }}>
@@ -48,6 +58,7 @@ export default function GerarLink({ onClose }) {
             <ZapLinks msg={msgCadastro(link)} label="WhatsApp" small={false} block />
           </div>
           {copiado && <div className="pos">{copiado}</div>}
+          <div className="muted" style={{ fontSize: 12 }}>O link vale para um único cadastro.</div>
           <button className="btn" style={{ justifyContent: 'center' }} onClick={() => { setLink(''); setCopiado('') }}>Gerar Outro Link</button>
         </div>
       )}
@@ -55,27 +66,13 @@ export default function GerarLink({ onClose }) {
   )
 }
 
+/** Importação de clientes por planilha (.xlsx). */
 export function ImportarCadastro({ onClose }) {
   const { addDebtor, debtors } = useStore()
-  const [aba, setAba] = useState('planilha')
-  const [texto, setTexto] = useState('')
   const [res, setRes] = useState('')
-  const [lista, setLista] = useState(null) // resultado da leitura da planilha
+  const [lista, setLista] = useState(null)
   const [lendo, setLendo] = useState(false)
   const [arquivo, setArquivo] = useState('')
-
-  const importarMensagem = () => {
-    const c = lerCodigo(texto)
-    if (!c || !c.nome) return setRes('Código não reconhecido. Cole a mensagem completa enviada pelo cliente.')
-    addDebtor({
-      nome: c.nome, cpf: c.cpf, rg: c.rg, telefone: c.telefone, email: c.email, cep: c.cep,
-      endereco: c.endereco, numero: c.numero, complemento: c.complemento, cidade: c.cidade, tipoEndereco: c.tipoEndereco,
-      valorEmprestado: c.v, valorParcela: c.j, jurosPct: c.v ? +((c.j / c.v) * 100).toFixed(2) : 0,
-      diaVencimento: c.d, viaLink: true,
-    })
-    setRes(`✔ ${c.nome} foi adicionado em Clientes.`)
-    setTexto('')
-  }
 
   const escolher = async (e) => {
     const f = e.target.files?.[0]
@@ -104,65 +101,46 @@ export function ImportarCadastro({ onClose }) {
 
   return (
     <Modal title="Importar Cadastro" onClose={onClose} wide>
-      <div className="tabs" style={{ marginBottom: 12 }}>
-        <button className={'tab' + (aba === 'planilha' ? ' active' : '')} onClick={() => { setAba('planilha'); setRes('') }}>📄 Planilha</button>
-        <button className={'tab' + (aba === 'mensagem' ? ' active' : '')} onClick={() => { setAba('mensagem'); setRes('') }}>💬 Mensagem do cliente</button>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Baixe o modelo, preencha uma linha por cliente e envie o mesmo arquivo aqui. Você confere o resultado antes de confirmar.
+      </p>
+      <div className="row" style={{ marginBottom: 12 }}>
+        <button className="btn" onClick={baixarModelo}>⬇ Baixar modelo de planilha</button>
+        <label className="btn primary" style={{ cursor: 'pointer' }}>
+          📤 Escolher planilha preenchida
+          <input type="file" accept=".xlsx,.xls,.csv" onChange={escolher} style={{ display: 'none' }} aria-label="Planilha preenchida" />
+        </label>
+        {arquivo && <span className="muted">{arquivo}</span>}
       </div>
-
-      {aba === 'planilha' ? (
-        <>
-          <p className="muted" style={{ marginTop: 0 }}>
-            Baixe o modelo, preencha uma linha por cliente e envie o mesmo arquivo aqui. Você confere o resultado antes de confirmar.
-          </p>
-          <div className="row" style={{ marginBottom: 12 }}>
-            <button className="btn" onClick={baixarModelo}>⬇ Baixar modelo de planilha</button>
-            <label className="btn primary" style={{ cursor: 'pointer' }}>
-              📤 Escolher planilha preenchida
-              <input type="file" accept=".xlsx,.xls,.csv" onChange={escolher} style={{ display: 'none' }} aria-label="Planilha preenchida" />
-            </label>
-            {arquivo && <span className="muted">{arquivo}</span>}
-          </div>
-          {lendo && <div className="muted">Lendo planilha…</div>}
-          {lista?.colunasFaltando?.length > 0 && (
-            <div className="neg">Faltam colunas obrigatórias: {lista.colunasFaltando.join(', ')}. Use o modelo sem alterar os títulos.</div>
-          )}
-          {lista && !lista.colunasFaltando.length && (
-            <>
-              {lista.linhas.length === 0 ? <div className="empty">Nenhum cliente encontrado na planilha.</div> : (
-                <>
-                  <div className="row between" style={{ marginBottom: 8 }}>
-                    <b>{validos.length} pronto(s) para importar · {lista.linhas.length - validos.length} ignorada(s)</b>
-                    <button className="btn primary" disabled={!validos.length} onClick={confirmar}>Importar {validos.length} cliente(s)</button>
-                  </div>
-                  <div className="tbl-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
-                    <table>
-                      <thead><tr><th>Linha</th><th>Nome</th><th>Parcela</th><th>Vence</th><th>Situação</th></tr></thead>
-                      <tbody>
-                        {lista.linhas.map((l) => (
-                          <tr key={l.linha}>
-                            <td>{l.linha}</td>
-                            <td>{l.cliente.nome || '—'}</td>
-                            <td>{brl(l.cliente.valorParcela)}</td>
-                            <td>{Number.isFinite(l.cliente.diaVencimento) ? `dia ${l.cliente.diaVencimento}` : '—'}</td>
-                            <td>{l.situacao === 'ok' ? <span className="badge b-pago">OK</span> : <span className={'badge ' + (l.situacao === 'erro' ? 'b-atrasado' : 'b-a_cobrar')}>{l.motivo}</span>}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
-            </>
-          )}
-        </>
-      ) : (
-        <>
-          <p className="muted" style={{ marginTop: 0 }}>Cole aqui a mensagem que o cliente enviou depois de preencher o link.</p>
-          <textarea className="search" rows="6" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Mensagem do cliente" />
-          <div className="row" style={{ marginTop: 12 }}>
-            <button className="btn primary" onClick={importarMensagem}>Importar cliente</button>
-          </div>
-        </>
+      {lendo && <div className="muted">Lendo planilha…</div>}
+      {lista?.colunasFaltando?.length > 0 && (
+        <div className="neg">Faltam colunas obrigatórias: {lista.colunasFaltando.join(', ')}. Use o modelo sem alterar os títulos.</div>
+      )}
+      {lista && !lista.colunasFaltando.length && (
+        lista.linhas.length === 0 ? <div className="empty">Nenhum cliente encontrado na planilha.</div> : (
+          <>
+            <div className="row between" style={{ marginBottom: 8 }}>
+              <b>{validos.length} pronto(s) para importar · {lista.linhas.length - validos.length} ignorada(s)</b>
+              <button className="btn primary" disabled={!validos.length} onClick={confirmar}>Importar {validos.length} cliente(s)</button>
+            </div>
+            <div className="tbl-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
+              <table>
+                <thead><tr><th>Linha</th><th>Nome</th><th>Parcela</th><th>Vence</th><th>Situação</th></tr></thead>
+                <tbody>
+                  {lista.linhas.map((l) => (
+                    <tr key={l.linha}>
+                      <td>{l.linha}</td>
+                      <td>{l.cliente.nome || '—'}</td>
+                      <td>{brl(l.cliente.valorParcela)}</td>
+                      <td>{Number.isFinite(l.cliente.diaVencimento) ? `dia ${l.cliente.diaVencimento}` : '—'}</td>
+                      <td>{l.situacao === 'ok' ? <span className="badge b-pago">OK</span> : <span className={'badge ' + (l.situacao === 'erro' ? 'b-atrasado' : 'b-a_cobrar')}>{l.motivo}</span>}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )
       )}
       {res && <div className={res.startsWith('✔') ? 'pos' : 'neg'} style={{ marginTop: 10 }}>{res}</div>}
     </Modal>

@@ -1,15 +1,79 @@
-import { createContext, useContext } from 'react'
-import { hojeISO, mesAtual, uid, useLocalStorage } from './utils'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { api } from './api'
+import { hojeISO, mesAtual, uid } from './utils'
 
 const Ctx = createContext(null)
 export const useStore = () => useContext(Ctx)
 
-/** Estado 100% local (localStorage). Sem banco de dados. */
-export function StoreProvider({ children }) {
-  const [transactions, setTransactions] = useLocalStorage('ahc:transactions', [])
-  const [debtors, setDebtors] = useLocalStorage('ahc:debtors', [])
-  const [logs, setLogs] = useLocalStorage('ahc:logs', [])
-  const [pixKeys, setPixKeys] = useLocalStorage('ahc:pix', [])
+/**
+ * Lista sincronizada com o servidor (Postgres). A tela atualiza na hora; cada mudança
+ * (item novo, alterado ou removido) é enviada ao servidor em seguida, na ordem.
+ */
+function useColecao(nome, inicial, enviar) {
+  const [lista, setLista] = useState(inicial)
+  const ref = useRef(inicial)
+  const set = useCallback((fn) => {
+    const antes = ref.current
+    const depois = typeof fn === 'function' ? fn(antes) : fn
+    ref.current = depois
+    setLista(depois)
+    enviar(nome, antes, depois)
+  }, [nome, enviar])
+  const substituir = useCallback((nova) => { ref.current = nova; setLista(nova) }, [])
+  return [lista, set, substituir]
+}
+
+export function StoreProvider({ dados, onSessaoExpirada, children }) {
+  const [erroSync, setErroSync] = useState('')
+  const fila = useRef(Promise.resolve())
+  const emVoo = useRef(0)
+
+  const enviar = useCallback((colecao, antes, depois) => {
+    const a = new Map(antes.map((x) => [x.id, x]))
+    const d = new Map(depois.map((x) => [x.id, x]))
+    const tarefas = []
+    for (const [id, item] of d) {
+      if (a.get(id) !== item && JSON.stringify(a.get(id)) !== JSON.stringify(item)) tarefas.push(() => api.put(`/c/${colecao}/${id}`, item))
+    }
+    for (const id of a.keys()) if (!d.has(id)) tarefas.push(() => api.del(`/c/${colecao}/${id}`))
+    tarefas.forEach((t) => {
+      emVoo.current++
+      fila.current = fila.current
+        .then(t)
+        .then(() => setErroSync(''), (e) => {
+          if (e.status === 401) onSessaoExpirada?.()
+          else setErroSync('Não foi possível salvar no servidor. Verifique a conexão e tente de novo.')
+        })
+        .finally(() => { emVoo.current-- })
+    })
+  }, [onSessaoExpirada])
+
+  const [transactions, setTransactions, substTransactions] = useColecao('transactions', dados.transactions, enviar)
+  const [todosDebtors, setDebtors, substDebtors] = useColecao('debtors', dados.debtors, enviar)
+  const [logs, setLogs, substLogs] = useColecao('logs', dados.logs, enviar)
+  const [pixKeys, setPixKeys, substPix] = useColecao('pix', dados.pix, enviar)
+
+  // Traz do servidor o que mudou fora desta tela (ex.: cliente que se cadastrou pelo link).
+  const recarregar = useCallback(async () => {
+    if (emVoo.current > 0) return
+    try {
+      const novo = await api.get('/data')
+      if (emVoo.current > 0) return
+      substTransactions(novo.transactions)
+      substDebtors(novo.debtors)
+      substLogs(novo.logs)
+      substPix(novo.pix)
+    } catch (e) {
+      if (e.status === 401) onSessaoExpirada?.()
+    }
+  }, [substTransactions, substDebtors, substLogs, substPix, onSessaoExpirada])
+
+  useEffect(() => {
+    const id = setInterval(recarregar, 45000)
+    const aoVoltar = () => document.visibilityState === 'visible' && recarregar()
+    document.addEventListener('visibilitychange', aoVoltar)
+    return () => { clearInterval(id); document.removeEventListener('visibilitychange', aoVoltar) }
+  }, [recarregar])
 
   const addTransaction = (t) => setTransactions((l) => [{ ...t, id: uid() }, ...l])
   const updateTransaction = (id, t) => setTransactions((l) => l.map((x) => (x.id === id ? { ...x, ...t } : x)))
@@ -24,14 +88,14 @@ export function StoreProvider({ children }) {
   const setStatusOverride = (id, s) => patch(id, { statusOverride: s || null })
 
   const markPaid = (id) => {
-    const d = debtors.find((x) => x.id === id)
+    const d = todosDebtors.find((x) => x.id === id)
     if (!d) return
     const mes = mesAtual()
     patch(id, { pagos: [...new Set([...(d.pagos || []), mes])], statusOverride: null })
     addLog(id, `Pagamento de ${mes} registrado`, 'pagamento')
   }
   const unmarkPaid = (id) => {
-    const d = debtors.find((x) => x.id === id)
+    const d = todosDebtors.find((x) => x.id === id)
     if (!d) return
     patch(id, { pagos: (d.pagos || []).filter((m) => m !== mesAtual()) })
   }
@@ -43,21 +107,15 @@ export function StoreProvider({ children }) {
   const addPix = (p) => setPixKeys((l) => [...l, { ...p, id: uid() }])
   const deletePix = (id) => setPixKeys((l) => l.filter((x) => x.id !== id))
 
-  const resetAll = () => {
-    setTransactions([])
-    setDebtors([])
-    setLogs([])
-    setPixKeys([])
-  }
-
   const value = {
     transactions, addTransaction, updateTransaction, deleteTransaction,
-    debtors: debtors.filter((d) => !d.deletedAt),
-    trashed: debtors.filter((d) => d.deletedAt),
+    debtors: todosDebtors.filter((d) => !d.deletedAt),
+    trashed: todosDebtors.filter((d) => d.deletedAt),
     addDebtor, updateDebtor, trashDebtor, restoreDebtor, deleteDebtorForever,
     setStatusOverride, markPaid, unmarkPaid,
     logs, addLog, deleteLog,
-    pixKeys, addPix, deletePix, resetAll,
+    pixKeys, addPix, deletePix,
+    erroSync, recarregar,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }

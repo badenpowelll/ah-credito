@@ -1,16 +1,9 @@
 import { useState } from 'react'
 import logo from '../assets/logo.jpg'
+import { api } from '../lib/api'
 
-// Acesso de teste (verificação feita no navegador, sem servidor).
-const USUARIO = 'teste'
-const SENHA = 'AH@2026teste'
-const CHAVE = 'ahc:auth'
-
-export const estaLogado = () => {
-  try { return sessionStorage.getItem(CHAVE) === '1' } catch { return false }
-}
-export const sair = () => {
-  try { sessionStorage.removeItem(CHAVE) } catch { /* sem armazenamento */ }
+export async function sair() {
+  try { await api.post('/logout') } catch { /* sessão já encerrada */ }
   location.reload()
 }
 
@@ -18,15 +11,19 @@ export default function Login({ onEntrar }) {
   const [u, setU] = useState('')
   const [s, setS] = useState('')
   const [erro, setErro] = useState('')
+  const [enviando, setEnviando] = useState(false)
 
-  const enviar = (e) => {
+  const enviar = async (e) => {
     e.preventDefault()
-    if (u.trim().toLowerCase() === USUARIO && s === SENHA) {
-      try { sessionStorage.setItem(CHAVE, '1') } catch { /* sem armazenamento */ }
+    setErro('')
+    setEnviando(true)
+    try {
+      await api.post('/login', { usuario: u, senha: s })
       onEntrar()
-    } else {
-      setErro('Usuário ou senha incorretos.')
+    } catch (err) {
+      setErro(err.message)
     }
+    setEnviando(false)
   }
 
   return (
@@ -43,7 +40,7 @@ export default function Login({ onEntrar }) {
           <input id="senha" type="password" autoComplete="current-password" value={s} onChange={(e) => setS(e.target.value)} required />
         </div>
         {erro && <div className="login-erro" role="alert">{erro}</div>}
-        <button className="btn primary" style={{ justifyContent: 'center', padding: 11 }}>Acessar</button>
+        <button className="btn primary" disabled={enviando} style={{ justifyContent: 'center', padding: 11 }}>{enviando ? 'Entrando…' : 'Acessar'}</button>
       </form>
     </div>
   )
