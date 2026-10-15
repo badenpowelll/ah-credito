@@ -1,6 +1,6 @@
 import logo from '../assets/logo.jpg'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { STATUS_LABEL, buscaCep, formataCep, soDigitos } from '../lib/utils'
+import { STATUS_LABEL, buscaCep, formataCep, soDigitos, useBancos } from '../lib/utils'
 
 export function Modal({ title, onClose, children, wide }) {
   return (
@@ -120,4 +120,15 @@ export function MoneyInput({ value, onChange, ...rest }) {
   }
 
   return <input ref={ref} inputMode="decimal" placeholder="0,00" {...rest} value={value} onChange={mudou} />
+}
+
+/** Banco com sugestões da BrasilAPI: digite o nome ou o código e escolha da lista. */
+export function BancoInput({ value, onChange, ...rest }) {
+  const bancos = useBancos()
+  return (
+    <>
+      <input list="lista-bancos" autoComplete="off" placeholder="Digite o nome ou o código do banco" {...rest} value={value} onChange={(e) => onChange(e.target.value)} />
+      <datalist id="lista-bancos">{bancos.map((b) => <option key={b} value={b} />)}</datalist>
+    </>
+  )
 }

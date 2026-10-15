@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import L from 'leaflet'
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
-import { Field, Modal, StatusBadge } from './ui'
+import { BancoInput, Field, Modal, StatusBadge } from './ui'
 import Robo from './Robo'
 import { msgDocumentos } from '../lib/cadastro'
 import { CFG_PADRAO, filaDeCobranca, rotuloEstagio } from '../lib/cobranca'
@@ -167,7 +167,7 @@ export function PixTab({ debtors }) {
         <h3>Chaves PIX da empresa</h3>
         <form className="form" onSubmit={(e) => { e.preventDefault(); addPix(p); setP({ titular: '', banco: '', chave: '' }) }}>
           <Field label="Titular"><input required value={p.titular} onChange={(e) => setP({ ...p, titular: e.target.value })} /></Field>
-          <Field label="Banco"><input required value={p.banco} onChange={(e) => setP({ ...p, banco: e.target.value })} /></Field>
+          <Field label="Banco"><BancoInput required value={p.banco} onChange={(v) => setP({ ...p, banco: v })} /></Field>
           <Field label="Chave PIX" full><input required value={p.chave} onChange={(e) => setP({ ...p, chave: e.target.value })} /></Field>
           <div className="full"><button className="btn primary">Adicionar chave</button></div>
         </form>

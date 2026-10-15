@@ -134,3 +134,33 @@ export function completaMoeda(texto) {
 export const parseMoeda = (texto) => parseFloat(String(texto).replace(/\./g, '').replace(',', '.')) || 0
 /** Número -> texto do campo ("1500" -> "1.500,00"). */
 export const moedaCampo = (n) => (n || n === 0 ? completaMoeda(String(Number(n).toFixed(2)).replace('.', ',')) : '')
+
+const BANCOS_BASE = [
+  '001 - Banco do Brasil S.A.', '033 - Banco Santander (Brasil) S.A.', '104 - Caixa Econômica Federal',
+  '237 - Banco Bradesco S.A.', '260 - Nu Pagamentos S.A. (Nubank)', '077 - Banco Inter S.A.', '341 - Itaú Unibanco S.A.',
+  '336 - Banco C6 S.A.', '323 - Mercado Pago', '197 - Stone Pagamentos S.A.', '380 - PicPay', '756 - Sicoob', '748 - Sicredi',
+]
+
+/** Lista de bancos da BrasilAPI ("001 - Banco do Brasil S.A."), guardada no navegador; usa lista básica se estiver sem internet. */
+export function useBancos() {
+  const [bancos, setBancos] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('ahc:bancos') || 'null') || BANCOS_BASE } catch { return BANCOS_BASE }
+  })
+  useEffect(() => {
+    let vivo = true
+    comTimeout('https://brasilapi.com.br/api/banks/v1', 10000)
+      .then((r) => r.json())
+      .then((l) => {
+        const lista = l
+          .filter((b) => b.code != null)
+          .map((b) => `${String(b.code).padStart(3, '0')} - ${b.fullName || b.name}`)
+          .sort((a, b) => a.localeCompare(b))
+        if (!vivo || !lista.length) return
+        setBancos(lista)
+        try { localStorage.setItem('ahc:bancos', JSON.stringify(lista)) } catch { /* sem armazenamento */ }
+      })
+      .catch(() => {})
+    return () => { vivo = false }
+  }, [])
+  return bancos
+}
