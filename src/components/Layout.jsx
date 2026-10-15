@@ -41,12 +41,33 @@ export const MENUS = [
   },
 ]
 
+export const MENU_MANUAL = {
+  title: 'Manual de Utilização',
+  to: '/manual',
+  icon: '?',
+  param: 'secao',
+  subs: [
+    { id: 'mapa', label: 'Mapa mental' },
+    { id: 'acesso', label: 'Primeiros passos' },
+    { id: 'dash-resumo', label: 'Dashboard' },
+    { id: 'emp-clientes', label: 'Clientes' },
+    { id: 'emp-novo', label: 'Novo cliente e documentos' },
+    { id: 'emp-ficha', label: 'Ficha do cliente' },
+    { id: 'emp-calendario', label: 'Calendário e mapa' },
+    { id: 'emp-pix', label: 'PIX e link de cadastro' },
+    { id: 'emp-planilha', label: 'Planilha' },
+    { id: 'emp-cobranca', label: 'Robôs' },
+    { id: 'cuidados', label: 'Dúvidas e cuidados' },
+  ],
+}
+MENUS.push(MENU_MANUAL)
+
 export default function Layout({ children }) {
   const loc = useLocation()
   const [sp] = useSearchParams()
   const { erroSync } = useStore()
   const [open, setOpen] = useState(false)
-  const [expanded, setExpanded] = useState({ '/': true, '/emprestimos': true })
+  const [expanded, setExpanded] = useState({ '/': true, '/emprestimos': true, '/manual': false })
 
   return (
     <div className="shell">

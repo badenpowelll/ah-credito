@@ -5,6 +5,7 @@ import Login from './components/Login'
 import CadastroCliente from './pages/CadastroCliente'
 import Dashboard from './pages/Dashboard'
 import Emprestimos from './pages/Emprestimos'
+import Manual from './pages/Manual'
 import { api } from './lib/api'
 import { StoreProvider } from './lib/store'
 
@@ -52,6 +53,7 @@ function Sistema() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/emprestimos" element={<Emprestimos />} />
+          <Route path="/manual" element={<Manual />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

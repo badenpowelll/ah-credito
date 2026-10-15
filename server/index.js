@@ -260,6 +260,24 @@ async function criarAdmin() {
   console.log(`Usuário "${usuario}" pronto.`)
 }
 
+// Acessos adicionais (ex.: conta de teste para o cliente): ACESSOS_EXTRAS="usuario:senha;outro:senha2".
+// A senha vale a cada reinício; para trocar, mude a variável. Não use ":" nem ";" na senha.
+async function criarAcessosExtras() {
+  for (const par of String(process.env.ACESSOS_EXTRAS || '').split(';')) {
+    const i = par.indexOf(':')
+    const usuario = par.slice(0, i).trim().toLowerCase()
+    const senha = par.slice(i + 1)
+    if (i < 1 || !usuario || !senha) continue
+    await q(
+      `INSERT INTO usuarios (usuario, senha_hash) VALUES ($1, $2)
+       ON CONFLICT (usuario) DO UPDATE SET senha_hash = EXCLUDED.senha_hash`,
+      [usuario, await bcrypt.hash(senha, 10)],
+    )
+    console.log(`Acesso "${usuario}" pronto.`)
+  }
+}
+
 const modo = await iniciarDb()
 await criarAdmin()
+await criarAcessosExtras()
 app.listen(PORTA, () => console.log(`AH Crédito na porta ${PORTA} · banco: ${modo}`))
