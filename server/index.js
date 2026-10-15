@@ -27,7 +27,8 @@ app.set('trust proxy', 1)
 app.disable('x-powered-by')
 app.use(express.json({ limit: '200kb' }))
 app.use((req, res, next) => {
-  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', // o mapa precisa identificar o site (o OpenStreetMap recusa pedidos sem Referer) 'X-Frame-Options': 'DENY' })
+  // Referrer-Policy: o mapa precisa identificar o site (o OpenStreetMap recusa pedidos sem Referer)
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'X-Frame-Options': 'DENY' })
   next()
 })
 
