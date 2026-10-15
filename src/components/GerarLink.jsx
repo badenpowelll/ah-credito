@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Field, Modal, MoneyInput } from './ui'
+import { Field, Modal, MoneyInput, ZapLinks } from './ui'
 import { gerarLink, lerCodigo, msgCadastro, telefoneWhats } from '../lib/cadastro'
 import { useStore } from '../lib/store'
 import { brl, parseMoeda, useLocalStorage } from '../lib/utils'
@@ -45,7 +45,7 @@ export default function GerarLink({ onClose }) {
           </div>
           <div className="row">
             <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={copiar}>Copiar Link</button>
-            <a className="btn green" style={{ flex: 1, justifyContent: 'center' }} target="_blank" rel="noreferrer" href={`https://api.whatsapp.com/send?text=${encodeURIComponent(msgCadastro(link))}`}>WhatsApp</a>
+            <ZapLinks msg={msgCadastro(link)} label="WhatsApp" small={false} block />
           </div>
           {copiado && <div className="pos">{copiado}</div>}
           <button className="btn" style={{ justifyContent: 'center' }} onClick={() => { setLink(''); setCopiado('') }}>Gerar Outro Link</button>

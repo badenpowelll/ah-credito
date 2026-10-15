@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { CepField, Field, Modal, MoneyInput, StatusBadge } from './ui'
+import { CepField, Field, Modal, MoneyInput, StatusBadge, ZapLinks } from './ui'
 import { useStore } from '../lib/store'
-import { brl, fmtData, moedaCampo, parseMoeda, statusDe, whatsLink } from '../lib/utils'
+import { brl, fmtData, moedaCampo, parseMoeda, statusDe } from '../lib/utils'
 
 const VAZIO = {
   nome: '', telefone: '', cpf: '', cep: '', endereco: '', numero: '', complemento: '', cidade: '', tipoEndereco: 'Residencial',
@@ -80,7 +80,7 @@ export function DebtorDetail({ debtor, onClose, onEdit }) {
           <option value="a_cobrar">Forçar: A cobrar</option>
         </select>
         <button className="btn sm" onClick={onEdit}>Editar</button>
-        {d.telefone && <a className="btn sm" target="_blank" rel="noreferrer" href={whatsLink(d.telefone, msg)}>WhatsApp</a>}
+        {d.telefone && <ZapLinks tel={d.telefone} msg={msg} label="WhatsApp" />}
       </div>
       <div className="form" style={{ marginBottom: 14 }}>
         {[['Telefone', d.telefone], ['CPF', d.cpf], ['Endereço', [d.endereco, d.numero, d.complemento, d.cidade, d.cep && 'CEP ' + d.cep].filter(Boolean).join(', ')],

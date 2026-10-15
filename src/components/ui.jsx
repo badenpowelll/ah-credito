@@ -1,6 +1,6 @@
 import logo from '../assets/logo.jpg'
 import { useLayoutEffect, useRef, useState } from 'react'
-import { STATUS_LABEL, buscaCep, formataCep, soDigitos, useBancos } from '../lib/utils'
+import { STATUS_LABEL, buscaCep, formataCep, soDigitos, useBancos, whatsApp, whatsWeb } from '../lib/utils'
 
 export function Modal({ title, onClose, children, wide }) {
   return (
@@ -130,5 +130,17 @@ export function BancoInput({ value, onChange, ...rest }) {
       <input list="lista-bancos" autoComplete="off" placeholder="Digite o nome ou o código do banco" {...rest} value={value} onChange={(e) => onChange(e.target.value)} />
       <datalist id="lista-bancos">{bancos.map((b) => <option key={b} value={b} />)}</datalist>
     </>
+  )
+}
+
+/** Envio por WhatsApp sem passar pela página intermediária do WhatsApp (preserva os emojis). */
+export function ZapLinks({ tel, msg, label = 'WhatsApp', onSend, primary = false, small = true, block = false }) {
+  const base = 'btn' + (small ? ' sm' : '')
+  const estilo = block ? { flex: 1, justifyContent: 'center' } : undefined
+  return (
+    <span className="row" style={{ gap: 6, flexWrap: 'nowrap', ...(block ? { flex: 1 } : {}) }}>
+      <a className={`${base} ${primary ? 'primary' : 'green'}`} style={estilo} href={whatsApp(tel, msg)} onClick={onSend} title="Abrir no app do WhatsApp">{label}</a>
+      <a className={base} target="_blank" rel="noreferrer" href={whatsWeb(tel, msg)} onClick={onSend} title="Abrir no WhatsApp Web">Web</a>
+    </span>
   )
 }

@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import L from 'leaflet'
 import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
-import { BancoInput, Field, Modal, StatusBadge } from './ui'
+import { BancoInput, Field, Modal, StatusBadge, ZapLinks } from './ui'
 import Robo from './Robo'
 import { msgDocumentos } from '../lib/cadastro'
 import { CFG_PADRAO, filaDeCobranca, rotuloEstagio } from '../lib/cobranca'
 import { responder } from '../lib/consulta'
 import { useStore } from '../lib/store'
-import { MESES, brl, fmtData, localizarCliente, soDigitos, statusDe, useLocalStorage, whatsLink } from '../lib/utils'
+import { MESES, brl, fmtData, localizarCliente, soDigitos, statusDe, useLocalStorage } from '../lib/utils'
 
 const COR = { pago: '#2fb36d', atrasado: '#e5484d', a_cobrar: '#e8b931' }
 
@@ -202,7 +202,7 @@ export function PixTab({ debtors }) {
             <div key={t} className="row between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line)' }}>
               <b>{t}</b>
               {d?.telefone
-                ? <a className="btn sm green" target="_blank" rel="noreferrer" href={whatsLink(d.telefone, m)}>Enviar no WhatsApp</a>
+                ? <ZapLinks tel={d.telefone} msg={m} label="Enviar no WhatsApp" />
                 : <button className="btn sm" onClick={() => navigator.clipboard?.writeText(m)}>Copiar texto</button>}
             </div>
           ))}
@@ -237,7 +237,6 @@ export function RoboCobranca({ debtors, onClose }) {
   const pendentes = fila.filter((x) => !x.jaEnviado && !x.semTelefone)
 
   const registrar = (x) => addLog(x.d.id, `Cobrança enviada por WhatsApp (${rotuloEstagio(x.est)})`, 'cobranca')
-  const linkDe = (x) => whatsLink(x.d.telefone, x.msg)
   const set = (k) => (e) => setCfg({ ...cfg, [k]: k === 'pixId' ? e.target.value : +e.target.value })
 
   return (
@@ -259,9 +258,7 @@ export function RoboCobranca({ debtors, onClose }) {
       <div className="row between" style={{ marginBottom: 8 }}>
         <b>Fila de hoje: {pendentes.length} para enviar · {fila.filter((x) => x.jaEnviado).length} já enviado(s)</b>
         {pendentes.length ? (
-          <a className="btn primary" target="_blank" rel="noreferrer" href={linkDe(pendentes[0])} onClick={() => registrar(pendentes[0])}>
-          ▶ Enviar próximo{pendentes.length ? ` (${pendentes[0].d.nome.split(' ')[0]})` : ''}
-        </a>
+          <ZapLinks tel={pendentes[0].d.telefone} msg={pendentes[0].msg} primary small={false} onSend={() => registrar(pendentes[0])} label={`▶ Enviar próximo (${pendentes[0].d.nome.split(' ')[0]})`} />
         ) : <button className="btn primary" disabled>▶ Enviar próximo</button>}
       </div>
       {pixKeys.length === 0 && <div className="neg" style={{ marginBottom: 8 }}>Cadastre uma chave PIX em "Cadastro e Chaves PIX" para ela entrar nas mensagens.</div>}
@@ -275,7 +272,7 @@ export function RoboCobranca({ debtors, onClose }) {
           </div>
           {x.semTelefone ? <span className="neg">sem telefone</span>
             : x.jaEnviado ? <span className="pos">✔ enviado</span>
-            : <a className="btn sm green" target="_blank" rel="noreferrer" href={linkDe(x)} onClick={() => registrar(x)}>Enviar no WhatsApp</a>}
+            : <ZapLinks tel={x.d.telefone} msg={x.msg} label="Enviar no WhatsApp" onSend={() => registrar(x)} />}
         </div>
       ))}
     </Modal>

@@ -38,11 +38,17 @@ export function statusDe(d, ref = new Date()) {
 
 export const STATUS_LABEL = { pago: 'PAGO', atrasado: 'ATRASADO', a_cobrar: 'A COBRAR' }
 
-export function whatsLink(tel, msg) {
+const paramsWhats = (tel, msg) => {
   const n = soDigitos(tel)
-  const full = n.length <= 11 ? '55' + n : n
-  return `https://api.whatsapp.com/send?phone=${full}&text=${encodeURIComponent(msg)}`
+  const phone = n ? `phone=${n.length <= 11 ? '55' + n : n}&` : ''
+  return `${phone}text=${encodeURIComponent(msg)}`
 }
+/**
+ * Links que NÃO passam pela página de pré-visualização do WhatsApp (ela troca os emojis por "�").
+ * App: abre direto no WhatsApp instalado (computador ou celular). Web: abre direto no WhatsApp Web.
+ */
+export const whatsApp = (tel, msg) => `whatsapp://send?${paramsWhats(tel, msg)}`
+export const whatsWeb = (tel, msg) => `https://web.whatsapp.com/send?${paramsWhats(tel, msg)}`
 
 export const formataCep = (v) => {
   const d = soDigitos(v).slice(0, 8)
