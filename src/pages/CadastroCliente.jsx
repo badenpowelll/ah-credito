@@ -48,7 +48,7 @@ export default function CadastroCliente({ termos }) {
             <div className="pos"><b>Cadastro preenchido!</b> Falta só enviar os dados para a {EMPRESA}.</div>
             <textarea className="search" readOnly rows="4" value={codigo} onFocus={(e) => e.target.select()} aria-label="Código do cadastro" />
             <div className="row">
-              {termos.w && <a className="btn green" style={{ flex: 1, justifyContent: 'center' }} target="_blank" rel="noreferrer" href={`https://wa.me/${termos.w}?text=${encodeURIComponent(texto)}`}>Enviar pelo WhatsApp</a>}
+              {termos.w && <a className="btn green" style={{ flex: 1, justifyContent: 'center' }} target="_blank" rel="noreferrer" href={`https://api.whatsapp.com/send?phone=${termos.w}&text=${encodeURIComponent(texto)}`}>Enviar pelo WhatsApp</a>}
               <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={copiar}>Copiar dados</button>
             </div>
             {msg && <div className="pos">{msg}</div>}

@@ -41,7 +41,7 @@ export const STATUS_LABEL = { pago: 'PAGO', atrasado: 'ATRASADO', a_cobrar: 'A C
 export function whatsLink(tel, msg) {
   const n = soDigitos(tel)
   const full = n.length <= 11 ? '55' + n : n
-  return `https://wa.me/${full}?text=${encodeURIComponent(msg)}`
+  return `https://api.whatsapp.com/send?phone=${full}&text=${encodeURIComponent(msg)}`
 }
 
 export const formataCep = (v) => {

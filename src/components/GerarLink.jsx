@@ -44,7 +44,7 @@ export default function GerarLink({ onClose }) {
           </div>
           <div className="row">
             <button className="btn" style={{ flex: 1, justifyContent: 'center' }} onClick={copiar}>Copiar Link</button>
-            <a className="btn green" style={{ flex: 1, justifyContent: 'center' }} target="_blank" rel="noreferrer" href={`https://wa.me/?text=${encodeURIComponent(msgCadastro(link))}`}>WhatsApp</a>
+            <a className="btn green" style={{ flex: 1, justifyContent: 'center' }} target="_blank" rel="noreferrer" href={`https://api.whatsapp.com/send?text=${encodeURIComponent(msgCadastro(link))}`}>WhatsApp</a>
           </div>
           {copiado && <div className="pos">{copiado}</div>}
           <button className="btn" style={{ justifyContent: 'center' }} onClick={() => { setLink(''); setCopiado('') }}>Gerar Outro Link</button>
