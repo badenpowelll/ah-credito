@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { proximoDiaUtil } from '../../shared/parcelas.js'
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
 export const brl = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -28,12 +29,20 @@ export function useLocalStorage(key, initial) {
   return [value, setValue]
 }
 
+/** Data real do vencimento deste mês: o dia do cadastro, e se cair no domingo, a segunda-feira seguinte. */
+export function vencimentoDoMes(d, ref = new Date()) {
+  const mes = mesAtual(ref)
+  const [a, m] = mes.split('-').map(Number)
+  const ultimo = new Date(a, m, 0).getDate()
+  return proximoDiaUtil(`${mes}-${p2(Math.min(Number(d.diaVencimento) || 1, ultimo))}`)
+}
+
 /** Status do cliente no mês corrente: pago | atrasado | a_cobrar */
 export function statusDe(d, ref = new Date()) {
   if (d.statusOverride) return d.statusOverride
   const mes = mesAtual(ref)
   if ((d.pagos || []).includes(mes)) return 'pago'
-  return ref.getDate() > Number(d.diaVencimento || 1) ? 'atrasado' : 'a_cobrar'
+  return hojeISO(ref) > vencimentoDoMes(d, ref) ? 'atrasado' : 'a_cobrar'
 }
 
 export const STATUS_LABEL = { pago: 'PAGO', atrasado: 'ATRASADO', a_cobrar: 'A COBRAR' }

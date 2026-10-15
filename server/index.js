@@ -5,7 +5,8 @@ import bcrypt from 'bcryptjs'
 import express from 'express'
 import jwt from 'jsonwebtoken'
 import { calcular } from '../shared/parcelas.js'
-import { emTransacao, iniciarDb, q } from './db.js'
+import { diferenca, registrar, rotasAuditoria, rotuloDe } from './auditoria.js'
+import { emTransacao, encerrarDb, iniciarDb, q } from './db.js'
 
 const aqui = path.dirname(fileURLToPath(import.meta.url))
 const DIST = path.join(aqui, '..', 'dist')
@@ -76,22 +77,32 @@ const asyncRota = (fn) => (req, res) => fn(req, res).catch((e) => {
 app.post('/api/login', limiteLogin, asyncRota(async (req, res) => {
   const usuario = String(req.body?.usuario || '').trim().toLowerCase()
   const senha = String(req.body?.senha || '')
-  const r = await q('SELECT senha_hash FROM usuarios WHERE usuario = $1', [usuario])
+  const r = await q('SELECT senha_hash, papel FROM usuarios WHERE usuario = $1', [usuario])
   // compara sempre, para não revelar se o usuário existe pelo tempo de resposta
   const hash = r.rows[0]?.senha_hash || HASH_FALSO
   const ok = await bcrypt.compare(senha, hash)
-  if (!r.rows[0] || !ok) return res.status(401).json({ erro: 'Usuário ou senha incorretos.' })
+  if (!r.rows[0] || !ok) {
+    await registrar(req, 'login_falhou', { usuario: usuario.slice(0, 80), detalhe: { motivo: r.rows[0] ? 'senha incorreta' : 'usuário inexistente' } })
+    return res.status(401).json({ erro: 'Usuário ou senha incorretos.' })
+  }
   const token = jwt.sign({ sub: usuario }, SEGREDO, { expiresIn: DURACAO_SESSAO })
   res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: PRODUCAO, maxAge: DURACAO_SESSAO * 1000, path: '/' })
-  res.json({ usuario })
+  await q('UPDATE usuarios SET ultimo_acesso = now() WHERE usuario = $1', [usuario])
+  await registrar(req, 'login', { usuario })
+  res.json({ usuario, papel: r.rows[0].papel })
 }))
 
-app.post('/api/logout', (req, res) => {
+app.post('/api/logout', async (req, res) => {
+  try { await registrar(req, 'logout', { usuario: jwt.verify(lerCookie(req, COOKIE), SEGREDO).sub }) } catch { /* sessão já vencida */ }
   res.clearCookie(COOKIE, { path: '/' })
   res.json({ ok: true })
 })
 
-app.get('/api/me', exigeLogin, (req, res) => res.json({ usuario: req.usuario }))
+app.get('/api/me', exigeLogin, asyncRota(async (req, res) => {
+  const r = await q('SELECT papel FROM usuarios WHERE usuario = $1', [req.usuario])
+  if (!r.rows[0]) return res.status(401).json({ erro: 'Sessão expirada. Entre novamente.' })
+  res.json({ usuario: req.usuario, papel: r.rows[0].papel })
+}))
 
 /* ---------- dados do sistema ---------- */
 app.get('/api/data', exigeLogin, asyncRota(async (req, res) => {
@@ -109,19 +120,27 @@ app.put('/api/c/:colecao/:id', exigeLogin, asyncRota(async (req, res) => {
   if (!item || typeof item !== 'object' || Array.isArray(item) || item.id !== id || id.length > 64) {
     return res.status(400).json({ erro: 'Dados inválidos.' })
   }
+  const anterior = (await q('SELECT dados FROM itens WHERE colecao = $1 AND id = $2', [colecao, id])).rows[0]?.dados
   await q(
     `INSERT INTO itens (colecao, id, dados) VALUES ($1, $2, $3::jsonb)
      ON CONFLICT (colecao, id) DO UPDATE SET dados = EXCLUDED.dados, atualizado_em = now()`,
     [colecao, id, JSON.stringify(item)],
   )
+  if (!anterior) await registrar(req, 'criar', { entidade: colecao, id, detalhe: { item: rotuloDe(item) } })
+  else {
+    const { campos, mudou } = diferenca(anterior, item)
+    if (campos.length) await registrar(req, 'alterar', { entidade: colecao, id, detalhe: { item: rotuloDe(item), campos, mudou } })
+  }
   res.json({ ok: true })
 }))
 
 app.delete('/api/c/:colecao/:id', exigeLogin, asyncRota(async (req, res) => {
   const { colecao, id } = req.params
   if (!COLECOES.has(colecao)) return res.status(404).json({ erro: 'Coleção inválida.' })
+  const anterior = (await q('SELECT dados FROM itens WHERE colecao = $1 AND id = $2', [colecao, id])).rows[0]?.dados
   await q('DELETE FROM itens WHERE colecao = $1 AND id = $2', [colecao, id])
   if (colecao === 'debtors') await q('DELETE FROM documentos WHERE cliente_id = $1', [id]) // exclusão definitiva leva os documentos junto
+  if (anterior) await registrar(req, 'excluir', { entidade: colecao, id, detalhe: { item: rotuloDe(anterior) } })
   res.json({ ok: true })
 }))
 
@@ -154,6 +173,7 @@ app.post('/api/clientes/:id/documentos', exigeLogin, corpoBruto, asyncRota(async
   if (Number(usado.rows[0].total) + dados.length > COTA_CLIENTE) return res.status(413).json({ erro: 'Limite de 100 MB de documentos deste cliente atingido.' })
   const id = crypto.randomBytes(12).toString('hex')
   await q('INSERT INTO documentos (id, cliente_id, nome, tipo, tamanho, dados) VALUES ($1, $2, $3, $4, $5, $6)', [id, req.params.id, nome, tipo, dados.length, dados])
+  await registrar(req, 'documento_enviar', { entidade: 'documentos', id, detalhe: { cliente: req.params.id, nome, tamanho: dados.length } })
   res.json({ id, nome, tipo, tamanho: dados.length })
 }))
 
@@ -167,11 +187,14 @@ app.get('/api/documentos/:id', exigeLogin, asyncRota(async (req, res) => {
     'Content-Disposition': `${ver ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(d.nome)}`,
     'Cache-Control': 'private, no-store',
   })
+  await registrar(req, ver ? 'documento_ver' : 'documento_baixar', { entidade: 'documentos', id: req.params.id, detalhe: { nome: d.nome } })
   res.send(Buffer.from(d.dados))
 }))
 
 app.delete('/api/documentos/:id', exigeLogin, asyncRota(async (req, res) => {
+  const d = (await q('SELECT nome, cliente_id FROM documentos WHERE id = $1', [req.params.id])).rows[0]
   await q('DELETE FROM documentos WHERE id = $1', [req.params.id])
+  if (d) await registrar(req, 'documento_excluir', { entidade: 'documentos', id: req.params.id, detalhe: { nome: d.nome, cliente: d.cliente_id } })
   res.json({ ok: true })
 }))
 
@@ -189,10 +212,11 @@ app.post('/api/links', exigeLogin, asyncRota(async (req, res) => {
   // os números derivados são recalculados aqui, no servidor, e não vêm prontos da tela
   const dados = {
     v: c.valor, p: c.parcela, n: c.n, modo, data: req.body.data,
-    primeira: c.primeira, ultima: c.ultima, total: c.total, juros: c.juros, jurosPctTotal: c.jurosPctTotal, taxaMes: c.taxaMes,
+    primeira: c.primeira, ultima: c.ultima, base: c.base, ultimaBase: c.nominais[c.nominais.length - 1], total: c.total, juros: c.juros, jurosPctTotal: c.jurosPctTotal, taxaMes: c.taxaMes,
   }
   const token = crypto.randomBytes(16).toString('base64url')
   await q('INSERT INTO links_cadastro (token, dados) VALUES ($1, $2::jsonb)', [token, JSON.stringify(dados)])
+  await registrar(req, 'link_gerar', { entidade: 'links', detalhe: { valor: c.valor, parcelas: c.n, parcela: c.parcela } })
   res.json({ token })
 }))
 
@@ -224,8 +248,8 @@ app.post('/api/public/cadastro/:token', limiteCadastro, asyncRota(async (req, re
     const novo = t.p !== undefined // links antigos (valor + juros mensal + dia) continuam funcionando
     const emprestimo = novo
       ? {
-          valorEmprestado: t.v, valorParcela: t.p, jurosPct: t.taxaMes ?? 0, diaVencimento: Number(t.primeira.slice(8, 10)),
-          parcelas: t.n, primeiroVencimento: t.primeira, ultimoVencimento: t.ultima, totalAPagar: t.total, valorJuros: t.juros,
+          valorEmprestado: t.v, valorParcela: t.p, jurosPct: t.taxaMes ?? 0, diaVencimento: Number((t.base ?? t.primeira).slice(8, 10)),
+          parcelas: t.n, primeiroVencimento: t.base ?? t.primeira, ultimoVencimento: t.ultimaBase ?? t.ultima, totalAPagar: t.total, valorJuros: t.juros,
           jurosPctTotal: t.jurosPctTotal, dataContrato: t.modo === 'inicio' ? t.data : null,
         }
       : { valorEmprestado: t.v, valorParcela: t.j, jurosPct: t.v ? +((t.j / t.v) * 100).toFixed(2) : 0, diaVencimento: t.d }
@@ -241,10 +265,40 @@ app.post('/api/public/cadastro/:token', limiteCadastro, asyncRota(async (req, re
     return true
   })
   if (!resultado) return res.status(410).json({ erro: 'Link inválido ou já utilizado.' })
+  await registrar(req, 'cadastro_publico', { usuario: null, entidade: 'debtors', detalhe: { item: cliente.nome } })
   res.json({ ok: true })
 }))
 
-app.get('/healthz', (req, res) => res.send('ok'))
+rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR })
+
+// Saúde: confirma que o banco responde. Se falhar, devolve 503 e a Railway reinicia o serviço.
+app.get('/healthz', async (req, res) => {
+  try {
+    await q('SELECT 1')
+    res.send('ok')
+  } catch (e) {
+    console.error('healthz: banco não respondeu:', e.message)
+    res.status(503).send('banco indisponível')
+  }
+})
+
+// Backup dos dados (clientes, movimentações, histórico, chaves PIX e a lista de documentos) em JSON.
+app.get('/api/backup', exigeLogin, asyncRota(async (req, res) => {
+  await registrar(req, 'backup', { entidade: 'sistema' })
+  const itens = await q('SELECT colecao, id, dados, ordem FROM itens ORDER BY colecao, ordem')
+  const docs = await q('SELECT id, cliente_id, nome, tipo, tamanho, criado_em FROM documentos ORDER BY criado_em')
+  res.set({
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Disposition': `attachment; filename="backup-ah-credito-${hojeBR()}.json"`,
+    'Cache-Control': 'private, no-store',
+  })
+  res.send(JSON.stringify({
+    sistema: 'AH Crédito', geradoEm: new Date().toISOString(),
+    observacao: 'Os arquivos dos documentos não vão neste backup (apenas a lista); eles continuam guardados no banco de dados.',
+    itens: itens.rows, documentos: docs.rows,
+  }, null, 1))
+}))
+
 app.use('/api', (req, res) => res.status(404).json({ erro: 'Rota não encontrada.' }))
 
 /* ---------- site (arquivos gerados pelo build) ---------- */
@@ -269,6 +323,18 @@ async function criarAdmin() {
   console.log(`Usuário "${usuario}" pronto.`)
 }
 
+// Conta do analista de sistemas, a única com acesso ao menu Auditoria. ANALISTA_USER e ANALISTA_PASSWORD (a senha vale a cada reinício).
+async function criarAnalista() {
+  const usuario = String(process.env.ANALISTA_USER || '').trim().toLowerCase()
+  const senha = process.env.ANALISTA_PASSWORD
+  if (!usuario || !senha) return
+  await q(
+    'INSERT INTO usuarios (usuario, senha_hash, papel) VALUES ($1, $2, ' + "'analista'" + ') ON CONFLICT (usuario) DO UPDATE SET senha_hash = EXCLUDED.senha_hash, papel = ' + "'analista'",
+    [usuario, await bcrypt.hash(senha, 10)],
+  )
+  console.log('Analista "' + usuario + '" pronto.')
+}
+
 // Acessos adicionais (ex.: conta de teste para o cliente): ACESSOS_EXTRAS="usuario:senha;outro:senha2".
 // A senha vale a cada reinício; para trocar, mude a variável. Não use ":" nem ";" na senha.
 async function criarAcessosExtras() {
@@ -289,4 +355,17 @@ async function criarAcessosExtras() {
 const modo = await iniciarDb()
 await criarAdmin()
 await criarAcessosExtras()
-app.listen(PORTA, () => console.log(`AH Crédito na porta ${PORTA} · banco: ${modo}`))
+await criarAnalista()
+const servidor = app.listen(PORTA, () => console.log(`AH Crédito na porta ${PORTA} · banco: ${modo}`))
+
+// Desligamento limpo (a Railway avisa com SIGTERM em cada atualização): termina os pedidos em andamento antes de sair.
+const desligar = (sinal) => {
+  console.log(`${sinal} recebido: encerrando…`)
+  servidor.close(async () => { await encerrarDb(); process.exit(0) })
+  setTimeout(() => process.exit(0), 8000).unref()
+}
+process.on('SIGTERM', () => desligar('SIGTERM'))
+process.on('SIGINT', () => desligar('SIGINT'))
+// Uma falha solta em um pedido é registrada; o servidor continua atendendo os demais.
+process.on('unhandledRejection', (e) => console.error('Falha não tratada:', e))
+process.on('uncaughtException', (e) => { console.error('Erro inesperado:', e); desligar('uncaughtException') })

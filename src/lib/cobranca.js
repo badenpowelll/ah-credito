@@ -1,4 +1,5 @@
-import { brl, fmtData, hojeISO, statusDe } from './utils'
+import { diasEntre } from '../../shared/parcelas.js'
+import { brl, fmtData, hojeISO, statusDe, vencimentoDoMes } from './utils'
 import { EMPRESA } from './cadastro'
 
 export const CFG_PADRAO = { ativo: true, diasAntes: 2, repetirAtraso: 3, pixId: '' }
@@ -7,10 +8,11 @@ export const CFG_PADRAO = { ativo: true, diasAntes: 2, repetirAtraso: 3, pixId: 
 export function estagioDe(d, cfg, hoje = new Date()) {
   const st = statusDe(d, hoje)
   if (st === 'pago') return null
-  const dif = Number(d.diaVencimento) - hoje.getDate()
-  if (st === 'atrasado') return { tipo: 'atraso', dias: -dif }
-  if (dif === 0) return { tipo: 'hoje', dias: 0 }
-  if (dif > 0 && dif <= cfg.diasAntes) return { tipo: 'antes', dias: dif }
+  const venc = vencimentoDoMes(d, hoje) // data real: domingo passa para segunda
+  const dif = diasEntre(hojeISO(hoje), venc)
+  if (st === 'atrasado') return { tipo: 'atraso', dias: -dif, venc }
+  if (dif === 0) return { tipo: 'hoje', dias: 0, venc }
+  if (dif > 0 && dif <= cfg.diasAntes) return { tipo: 'antes', dias: dif, venc }
   return null
 }
 
@@ -19,10 +21,10 @@ export function mensagemCobranca(d, est, pix) {
   const dados = pix ? `\n\n💳 *PIX* (${pix.titular} — ${pix.banco}):\n${pix.chave}` : ''
   const valor = `*${brl(d.valorParcela)}*`
   if (est.tipo === 'atraso')
-    return `🔔 *${EMPRESA}*\n\nOlá, ${nome}! Sua parcela de ${valor} venceu no dia ${d.diaVencimento} e consta em aberto (${est.dias} dia(s) de atraso).\n\nPor favor, regularize o pagamento e envie o comprovante.${dados}\n\n— *${EMPRESA}*`
+    return `🔔 *${EMPRESA}*\n\nOlá, ${nome}! Sua parcela de ${valor} venceu no dia ${Number(est.venc.slice(8))} e consta em aberto (${est.dias} dia(s) de atraso).\n\nPor favor, regularize o pagamento e envie o comprovante.${dados}\n\n— *${EMPRESA}*`
   if (est.tipo === 'hoje')
-    return `🔔 *${EMPRESA}*\n\nOlá, ${nome}! Sua parcela de ${valor} vence *hoje* (dia ${d.diaVencimento}).${dados}\n\nApós pagar, envie o comprovante por aqui. Obrigado!\n\n— *${EMPRESA}*`
-  return `🔔 *${EMPRESA}*\n\nOlá, ${nome}! Lembrete: sua parcela de ${valor} vence em ${est.dias} dia(s) (dia ${d.diaVencimento}).${dados}\n\n— *${EMPRESA}*`
+    return `🔔 *${EMPRESA}*\n\nOlá, ${nome}! Sua parcela de ${valor} vence *hoje* (dia ${Number(est.venc.slice(8))}).${dados}\n\nApós pagar, envie o comprovante por aqui. Obrigado!\n\n— *${EMPRESA}*`
+  return `🔔 *${EMPRESA}*\n\nOlá, ${nome}! Lembrete: sua parcela de ${valor} vence em ${est.dias} dia(s) (dia ${Number(est.venc.slice(8))}).${dados}\n\n— *${EMPRESA}*`
 }
 
 /** Fila de hoje: quem deve receber cobrança e ainda não recebeu (conforme o histórico de envios). */

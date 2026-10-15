@@ -21,6 +21,20 @@ export function somaMeses(iso, k) {
   return `${ano}-${dois(mes + 1)}-${dois(Math.min(d, ultimo))}`
 }
 
+/** Domingo não é dia de pagamento: passa para a segunda-feira. Segunda a sábado contam como dias úteis. */
+export function proximoDiaUtil(iso) {
+  const [a, m, d] = iso.split('-').map(Number)
+  const t = new Date(Date.UTC(a, m - 1, d))
+  if (t.getUTCDay() === 0) t.setUTCDate(t.getUTCDate() + 1)
+  return `${t.getUTCFullYear()}-${dois(t.getUTCMonth() + 1)}-${dois(t.getUTCDate())}`
+}
+
+/** Dias corridos entre duas datas "AAAA-MM-DD" (positivo quando a segunda é depois da primeira). */
+export function diasEntre(deISO, ateISO) {
+  const ms = (s) => { const [a, m, d] = s.split('-').map(Number); return Date.UTC(a, m - 1, d) }
+  return Math.round((ms(ateISO) - ms(deISO)) / 86400000)
+}
+
 /**
  * Taxa de juros ao mês que faz n parcelas iguais de `parcela` pagarem `valor` (juros compostos, parcelas no fim de cada mês).
  * Devolve 0 se não há juros e null se as parcelas somam menos que o valor.
@@ -49,8 +63,10 @@ export function taxaMensal(valor, parcela, n) {
 export function calcular({ valor, parcela, n, data, modo = 'inicio' }) {
   const v = Number(valor), p = Number(parcela), q = parseInt(n, 10)
   if (!(v > 0) || !(p > 0) || !(q >= 1 && q <= 120) || !dataValida(data)) return null
-  const primeira = modo === 'parcela' ? data : somaMeses(data, 1)
-  const datas = Array.from({ length: q }, (_, i) => somaMeses(primeira, i))
+  const base = modo === 'parcela' ? data : somaMeses(data, 1) // vencimento "de calendário" da 1ª parcela
+  const nominais = Array.from({ length: q }, (_, i) => somaMeses(base, i))
+  const datas = nominais.map(proximoDiaUtil) // datas reais de pagamento (domingo vai para segunda)
+  const primeira = datas[0]
   const total = arred(p * q)
   const taxa = taxaMensal(v, p, q)
   return {
@@ -59,7 +75,7 @@ export function calcular({ valor, parcela, n, data, modo = 'inicio' }) {
     juros: arred(total - v),
     jurosPctTotal: arred(((total - v) / v) * 100),
     taxaMes: taxa === null ? null : arred(taxa * 100, 2),
-    primeira, ultima: datas[datas.length - 1], datas,
+    base, nominais, primeira, ultima: datas[datas.length - 1], datas,
     semJuros: taxa === null, // true quando as parcelas somam menos que o valor emprestado
   }
 }

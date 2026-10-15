@@ -4,6 +4,7 @@ import Layout from './components/Layout'
 import Login from './components/Login'
 import CadastroCliente from './pages/CadastroCliente'
 import Dashboard from './pages/Dashboard'
+import Auditoria from './pages/Auditoria'
 import Emprestimos from './pages/Emprestimos'
 import Manual from './pages/Manual'
 import { api } from './lib/api'
@@ -18,6 +19,7 @@ function Carregando({ texto = 'Carregando…' }) {
 function Sistema() {
   const [estado, setEstado] = useState('verificando') // verificando | deslogado | carregando | pronto | erro
   const [dados, setDados] = useState(null)
+  const [eu, setEu] = useState(null) // { usuario, papel }
 
   const carregar = useCallback(async () => {
     setEstado('carregando')
@@ -30,8 +32,13 @@ function Sistema() {
   }, [])
 
   useEffect(() => {
-    api.get('/me').then(carregar, (e) => setEstado(e.status === 401 ? 'deslogado' : 'erro'))
+    api.get('/me').then((u) => { setEu(u); return carregar() }, (e) => setEstado(e.status === 401 ? 'deslogado' : 'erro'))
   }, [carregar])
+
+  const entrou = async () => {
+    try { setEu(await api.get('/me')) } catch { /* segue sem o papel */ }
+    await carregar()
+  }
 
   if (estado === 'verificando' || estado === 'carregando') return <Carregando />
   if (estado === 'erro') {
@@ -45,15 +52,16 @@ function Sistema() {
       </div>
     )
   }
-  if (estado === 'deslogado') return <Login onEntrar={carregar} />
+  if (estado === 'deslogado') return <Login onEntrar={entrou} />
 
   return (
-    <StoreProvider dados={dados} onSessaoExpirada={() => setEstado('deslogado')}>
+    <StoreProvider dados={dados} usuario={eu} onSessaoExpirada={() => setEstado('deslogado')}>
       <Layout>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/emprestimos" element={<Emprestimos />} />
           <Route path="/manual" element={<Manual />} />
+          <Route path="/auditoria" element={eu?.papel === 'analista' ? <Auditoria /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

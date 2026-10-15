@@ -1,5 +1,6 @@
 import logo from '../assets/logo.jpg'
 import { useLayoutEffect, useRef, useState } from 'react'
+import { CLASSE_PARCELA, ROTULO_PARCELA } from '../lib/situacaoParcelas'
 import { STATUS_LABEL, buscaCep, formataCep, soDigitos, useBancos, whatsApp, whatsWeb } from '../lib/utils'
 
 export function Modal({ title, onClose, children, wide }) {
@@ -144,3 +145,6 @@ export function ZapLinks({ tel, msg, label = 'WhatsApp', onSend, primary = false
     </span>
   )
 }
+
+/** Selo da parcela: PAGO (verde), ATRASADO (vermelho) ou EM DIA (amarelo). */
+export const SituacaoParcela = ({ status }) => <span className={`badge ${CLASSE_PARCELA[status]}`}>{ROTULO_PARCELA[status]}</span>

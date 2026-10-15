@@ -1,8 +1,23 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { api } from './api'
-import { hojeISO, mesAtual, uid } from './utils'
+import { movimentosDeEmprestimos } from './movimentos'
+import { hojeISO, mesAtual, uid, useLocalStorage } from './utils'
 
 const Ctx = createContext(null)
+
+const dorme = (ms) => new Promise((r) => setTimeout(r, ms))
+/** Tenta de novo (1s, 2s, 3s) quando a falha é de rede ou do servidor; erros de validação e sessão não repetem. */
+async function comRetentativa(tarefa, tentativas = 4) {
+  for (let i = 1; ; i++) {
+    try {
+      return await tarefa()
+    } catch (e) {
+      const definitivo = e.status === 401 || (e.status >= 400 && e.status < 500 && e.status !== 429)
+      if (definitivo || i >= tentativas) throw e
+      await dorme(1000 * i)
+    }
+  }
+}
 export const useStore = () => useContext(Ctx)
 
 /**
@@ -23,7 +38,7 @@ function useColecao(nome, inicial, enviar) {
   return [lista, set, substituir]
 }
 
-export function StoreProvider({ dados, onSessaoExpirada, children }) {
+export function StoreProvider({ dados, usuario, onSessaoExpirada, children }) {
   const [erroSync, setErroSync] = useState('')
   const fila = useRef(Promise.resolve())
   const emVoo = useRef(0)
@@ -39,7 +54,7 @@ export function StoreProvider({ dados, onSessaoExpirada, children }) {
     tarefas.forEach((t) => {
       emVoo.current++
       fila.current = fila.current
-        .then(t)
+        .then(() => comRetentativa(t))
         .then(() => setErroSync(''), (e) => {
           if (e.status === 401) onSessaoExpirada?.()
           else setErroSync('Não foi possível salvar no servidor. Verifique a conexão e tente de novo.')
@@ -75,6 +90,13 @@ export function StoreProvider({ dados, onSessaoExpirada, children }) {
     return () => { clearInterval(id); document.removeEventListener('visibilitychange', aoVoltar) }
   }, [recarregar])
 
+  // Fluxo de caixa = lançamentos manuais + (opcional) movimentos gerados pelos empréstimos.
+  const [incluirEmprestimos, setIncluirEmprestimos] = useLocalStorage('ahc:fluxo-emprestimos', true)
+  const movimentos = useMemo(
+    () => (incluirEmprestimos ? [...transactions, ...movimentosDeEmprestimos(todosDebtors.filter((d) => !d.deletedAt), logs)] : transactions),
+    [incluirEmprestimos, transactions, todosDebtors, logs],
+  )
+
   const addTransaction = (t) => setTransactions((l) => [{ ...t, id: uid() }, ...l])
   const updateTransaction = (id, t) => setTransactions((l) => l.map((x) => (x.id === id ? { ...x, ...t } : x)))
   const deleteTransaction = (id) => setTransactions((l) => l.filter((x) => x.id !== id))
@@ -87,17 +109,17 @@ export function StoreProvider({ dados, onSessaoExpirada, children }) {
   const deleteDebtorForever = (id) => setDebtors((l) => l.filter((x) => x.id !== id))
   const setStatusOverride = (id, s) => patch(id, { statusOverride: s || null })
 
-  const markPaid = (id) => {
+  const markPaid = (id, mes = mesAtual()) => {
     const d = todosDebtors.find((x) => x.id === id)
     if (!d) return
-    const mes = mesAtual()
     patch(id, { pagos: [...new Set([...(d.pagos || []), mes])], statusOverride: null })
     addLog(id, `Pagamento de ${mes} registrado`, 'pagamento')
   }
-  const unmarkPaid = (id) => {
+  const unmarkPaid = (id, mes = mesAtual()) => {
     const d = todosDebtors.find((x) => x.id === id)
     if (!d) return
-    patch(id, { pagos: (d.pagos || []).filter((m) => m !== mesAtual()) })
+    patch(id, { pagos: (d.pagos || []).filter((m) => m !== mes) })
+    addLog(id, `Pagamento de ${mes} desfeito`, 'nota')
   }
 
   const addLog = (debtorId, texto, tipo = 'nota') =>
@@ -115,6 +137,7 @@ export function StoreProvider({ dados, onSessaoExpirada, children }) {
     setStatusOverride, markPaid, unmarkPaid,
     logs, addLog, deleteLog,
     pixKeys, addPix, deletePix,
+    usuario, movimentos, incluirEmprestimos, setIncluirEmprestimos,
     erroSync, recarregar,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

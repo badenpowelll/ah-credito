@@ -1,5 +1,7 @@
 import { useMemo } from 'react'
 import { calcular } from '../../shared/parcelas'
+import { SituacaoParcela } from './ui'
+import { statusParcela } from '../lib/situacaoParcelas'
 import { brl, fmtData, parseMoeda } from '../lib/utils'
 
 export const pct = (n) => `${String(n).replace('.', ',')}%`
@@ -24,7 +26,7 @@ export function OpcoesData({ modo, onChange, nome = 'modo' }) {
 }
 
 /** Painel "Cálculo automático": total, juros, taxa e datas. */
-export function PainelCalculo({ calc }) {
+export function PainelCalculo({ calc, pagos = [] }) {
   return (
     <div className="calc" aria-live="polite">
       <b>Cálculo automático</b>
@@ -40,11 +42,15 @@ export function PainelCalculo({ calc }) {
             <div><small className="muted">1ª parcela</small><b>{fmtData(calc.primeira)}</b></div>
             <div><small className="muted">Última parcela</small><b>{fmtData(calc.ultima)}</b></div>
           </div>
-          <div className="muted" style={{ fontSize: 12 }}>{calc.n}x de {brl(calc.parcela)} para pagar {brl(calc.valor)}, sempre no mesmo dia de cada mês.</div>
+          <div className="muted" style={{ fontSize: 12 }}>{calc.n}x de {brl(calc.parcela)} para pagar {brl(calc.valor)}, sempre no mesmo dia de cada mês; se cair no domingo, vai para a segunda-feira.</div>
           <details>
             <summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>Ver as {calc.n} datas de vencimento</summary>
             <ol className="datas">
-              {calc.datas.map((d, i) => <li key={d}>{i + 1}ª · {fmtData(d)} · {brl(calc.parcela)}</li>)}
+              {calc.datas.map((d, i) => (
+                <li key={d + i}>{i + 1}ª · {fmtData(d)} · {brl(calc.parcela)} <SituacaoParcela status={statusParcela(d, pagos, undefined, calc.nominais[i].slice(0, 7))} />
+                  {calc.nominais[i] !== d && <span className="muted" style={{ fontSize: 11 }}> (caía no domingo {fmtData(calc.nominais[i])})</span>}
+                </li>
+              ))}
             </ol>
           </details>
         </>

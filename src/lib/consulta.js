@@ -1,4 +1,5 @@
-import { MESES, brl, fmtData, mesAtual, statusDe } from './utils'
+import { diasEntre, proximoDiaUtil } from '../../shared/parcelas.js'
+import { MESES, brl, fmtData, hojeISO, mesAtual, statusDe, vencimentoDoMes } from './utils'
 
 /** Consulta local aos dados do sistema. Só informa o que está cadastrado; não dá opinião nem avalia risco. */
 
@@ -7,7 +8,7 @@ const tem = (q, ...ps) => ps.some((p) => q.includes(p))
 const ROTULO = { pago: 'PAGO', atrasado: 'ATRASADO', a_cobrar: 'A COBRAR' }
 
 export function diasAtraso(d, hoje = new Date()) {
-  return statusDe(d, hoje) === 'atrasado' ? Math.max(0, hoje.getDate() - Number(d.diaVencimento || 1)) : 0
+  return statusDe(d, hoje) === 'atrasado' ? Math.max(0, diasEntre(vencimentoDoMes(d, hoje), hojeISO(hoje))) : 0
 }
 const linhaCliente = (d) => `• ${d.nome} — parcela ${brl(d.valorParcela)}, vence dia ${d.diaVencimento} (${ROTULO[statusDe(d)]})`
 const soma = (l, f) => l.reduce((s, x) => s + (Number(f(x)) || 0), 0)
@@ -21,7 +22,7 @@ function fichaCliente(d, logs) {
     `Endereço: ${[d.endereco, d.numero, d.complemento, d.cidade, d.cep && 'CEP ' + d.cep].filter(Boolean).join(', ') || 'não cadastrado'}`,
     `Emprestado: ${brl(d.valorEmprestado)} · Parcela mensal: ${brl(d.valorParcela)} · Juros: ${d.jurosPct || 0}% a.m.`,
     `Vencimento: dia ${d.diaVencimento} · Meses pagos: ${(d.pagos || []).join(', ') || 'nenhum'}`,
-    d.parcelas ? `Parcelamento: ${d.parcelas}x de ${brl(d.valorParcela)} · total ${brl(d.totalAPagar)} · juros ${brl(d.valorJuros)} · de ${fmtData(d.primeiroVencimento)} até ${fmtData(d.ultimoVencimento)}` : null,
+    d.parcelas ? `Parcelamento: ${d.parcelas}x de ${brl(d.valorParcela)} · total ${brl(d.totalAPagar)} · juros ${brl(d.valorJuros)} · de ${fmtData(proximoDiaUtil(d.primeiroVencimento))} até ${fmtData(proximoDiaUtil(d.ultimoVencimento))}` : null,
     d.cpf ? `CPF: ${d.cpf}${d.rg ? ` · RG: ${d.rg}` : ''}${d.email ? ` · E-mail: ${d.email}` : ''}` : null,
     d.banco || d.agencia || d.conta
       ? `Banco: ${[d.banco, d.agencia && `ag. ${d.agencia}`, d.conta && `conta ${d.conta}${d.tipoConta ? ` (${d.tipoConta})` : ''}`, d.titularConta && `titular ${d.titularConta}`].filter(Boolean).join(' · ')}`
@@ -105,7 +106,7 @@ export function responder(pergunta, { debtors, transactions, pixKeys, logs, tras
   }
   if (tem(q, 'venc', 'proximo', 'hoje', 'semana')) {
     const d0 = hoje.getDate()
-    const l = debtors.filter((d) => statusDe(d) !== 'pago').map((d) => ({ d, f: Number(d.diaVencimento) - d0 })).filter((x) => x.f >= 0 && x.f <= 7).sort((a, b) => a.f - b.f)
+    const l = debtors.filter((d) => statusDe(d) !== 'pago').map((d) => ({ d, f: diasEntre(hojeISO(hoje), vencimentoDoMes(d, hoje)) })).filter((x) => x.f >= 0 && x.f <= 7).sort((a, b) => a.f - b.f)
     return l.length ? 'Vencimentos nos próximos 7 dias:\n' + l.map(({ d, f }) => `• ${f === 0 ? 'HOJE' : `em ${f} dia(s)`} (dia ${d.diaVencimento}) — ${d.nome}, ${brl(d.valorParcela)}`).join('\n') : 'Nenhum vencimento (sem pagamento) nos próximos 7 dias.'
   }
   if (tem(q, 'lista', 'todos', 'clientes', 'cadastrad', 'quem')) return lista('Clientes cadastrados', debtors)

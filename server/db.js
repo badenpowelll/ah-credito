@@ -9,6 +9,21 @@ CREATE TABLE IF NOT EXISTS usuarios (
   senha_hash text NOT NULL,
   criado_em timestamptz NOT NULL DEFAULT now()
 );
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS papel text NOT NULL DEFAULT 'usuario';
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS ultimo_acesso timestamptz;
+CREATE TABLE IF NOT EXISTS auditoria (
+  id bigserial PRIMARY KEY,
+  quando timestamptz NOT NULL DEFAULT now(),
+  usuario text,
+  acao text NOT NULL,
+  entidade text,
+  entidade_id text,
+  detalhe jsonb,
+  ip text,
+  agente text
+);
+CREATE INDEX IF NOT EXISTS auditoria_quando_idx ON auditoria (quando DESC);
+CREATE INDEX IF NOT EXISTS auditoria_usuario_idx ON auditoria (usuario, id DESC);
 CREATE TABLE IF NOT EXISTS itens (
   colecao text NOT NULL,
   id text NOT NULL,
@@ -47,6 +62,8 @@ export async function iniciarDb() {
       ssl: process.env.PGSSL === 'require' ? { rejectUnauthorized: false } : undefined,
       max: 5,
     })
+    // Erros de conexões ociosas (ex.: reinício do banco) não podem derrubar o servidor; o pool abre outra conexão.
+    pool.on('error', (e) => console.error('Conexão com o banco falhou (será refeita):', e.message))
     await pool.query(ESQUEMA)
     return 'postgres'
   }
@@ -76,4 +93,11 @@ export async function emTransacao(fn) {
     }
   }
   return pglite.transaction((tx) => fn((t, p = []) => tx.query(t, p)))
+}
+
+export async function encerrarDb() {
+  try {
+    if (pool) await pool.end()
+    else if (pglite) await pglite.close()
+  } catch { /* já encerrado */ }
 }

@@ -4,6 +4,7 @@ import { MapContainer, Marker, Popup, TileLayer, useMap } from 'react-leaflet'
 import { BancoInput, Field, Modal, StatusBadge, ZapLinks } from './ui'
 import Robo from './Robo'
 import { msgDocumentos } from '../lib/cadastro'
+import { proximoDiaUtil } from '../../shared/parcelas'
 import { CFG_PADRAO, filaDeCobranca, rotuloEstagio } from '../lib/cobranca'
 import { responder } from '../lib/consulta'
 import { useStore } from '../lib/store'
@@ -19,6 +20,12 @@ export function CalendarioTab({ debtors, onOpen }) {
   const hoje = new Date()
   const celulas = [...Array(offset).fill(null), ...Array.from({ length: dias }, (_, i) => i + 1)]
   const ehMesAtual = ano === hoje.getFullYear() && mes === hoje.getMonth()
+  // Vencimento em domingo passa para a segunda-feira (segunda a sábado contam como dia útil).
+  const diaNoMes = (d) => {
+    const nominal = `${ano}-${String(mes + 1).padStart(2, '0')}-${String(Math.min(+d.diaVencimento || 1, dias)).padStart(2, '0')}`
+    const ajustado = proximoDiaUtil(nominal)
+    return ajustado.slice(0, 7) === nominal.slice(0, 7) ? +ajustado.slice(8) : null
+  }
   const stDia = (d, dia) => {
     if ((d.pagos || []).includes(`${ano}-${String(mes + 1).padStart(2, '0')}`)) return 'pago'
     if (d.statusOverride) return d.statusOverride
@@ -34,7 +41,7 @@ export function CalendarioTab({ debtors, onOpen }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 4 }}>
         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => <div key={d} className="muted" style={{ textAlign: 'center', fontSize: 12 }}>{d}</div>)}
         {celulas.map((dia, i) => {
-          const dd = dia ? debtors.filter((d) => Math.min(+d.diaVencimento, dias) === dia) : []
+          const dd = dia ? debtors.filter((d) => diaNoMes(d) === dia) : []
           return (
             <div key={i} style={{ minHeight: 84, background: dia ? 'var(--panel2)' : 'transparent', borderRadius: 8, padding: 4, border: ehMesAtual && dia === hoje.getDate() ? '1px solid var(--gold)' : '1px solid transparent' }}>
               <div className="muted" style={{ fontSize: 11 }}>{dia}</div>
@@ -267,7 +274,7 @@ export function RoboCobranca({ debtors, onClose }) {
         <div key={x.d.id} className="row between" style={{ padding: '10px 0', borderBottom: '1px solid var(--line)', opacity: x.jaEnviado ? 0.55 : 1 }}>
           <div style={{ minWidth: 0, flex: 1 }}>
             <b>{x.d.nome}</b> <StatusBadge status={statusDe(x.d)} />
-            <div className="muted" style={{ fontSize: 12 }}>{rotuloEstagio(x.est)} · {brl(x.d.valorParcela)} · dia {x.d.diaVencimento}{x.ultimo ? ` · último envio ${fmtData(x.ultimo)}` : ''}</div>
+            <div className="muted" style={{ fontSize: 12 }}>{rotuloEstagio(x.est)} · {brl(x.d.valorParcela)} · dia {Number(x.est.venc.slice(8))}{x.ultimo ? ` · último envio ${fmtData(x.ultimo)}` : ''}</div>
             <details><summary className="muted" style={{ fontSize: 12, cursor: 'pointer' }}>Ver mensagem</summary><pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', margin: '6px 0' }}>{x.msg}</pre></details>
           </div>
           {x.semTelefone ? <span className="neg">sem telefone</span>
@@ -280,7 +287,7 @@ export function RoboCobranca({ debtors, onClose }) {
 }
 
 export function RoboCredito({ debtors, onClose }) {
-  const { transactions, pixKeys, logs, trashed } = useStore()
+  const { movimentos: transactions, pixKeys, logs, trashed } = useStore()
   return (
     <Modal title="🤖 Robô de Crédito" onClose={onClose} wide>
       <Robo

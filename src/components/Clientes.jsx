@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react'
-import { BancoInput, CepField, Field, Modal, MoneyInput, StatusBadge, ZapLinks } from './ui'
+import { BancoInput, CepField, Field, Modal, MoneyInput, SituacaoParcela, StatusBadge, ZapLinks } from './ui'
 import { Documentos, ListaDocs, SeletorArquivos, enviarVarios, useDocumentos } from './Documentos'
 import { OpcoesData, PainelCalculo, useCalculo } from './Parcelamento'
+import { proximoDiaUtil } from '../../shared/parcelas'
+import { listaParcelas } from '../lib/situacaoParcelas'
 import { useStore } from '../lib/store'
 import { brl, fmtData, moedaCampo, parseMoeda, statusDe, uid } from '../lib/utils'
 
@@ -47,8 +49,8 @@ export function DebtorForm({ inicial, onClose }) {
       valorParcela: parseMoeda(f.valorParcela),
       ...(temParcelamento
         ? {
-            parcelas: calc.n, jurosPct: calc.taxaMes, diaVencimento: Number(calc.primeira.slice(8, 10)),
-            primeiroVencimento: calc.primeira, ultimoVencimento: calc.ultima, totalAPagar: calc.total,
+            parcelas: calc.n, jurosPct: calc.taxaMes, diaVencimento: Number(calc.base.slice(8, 10)),
+            primeiroVencimento: calc.base, ultimoVencimento: calc.nominais[calc.nominais.length - 1], totalAPagar: calc.total,
             valorJuros: calc.juros, jurosPctTotal: calc.jurosPctTotal, dataContrato: calc.inicio,
           }
         : {
@@ -93,7 +95,7 @@ export function DebtorForm({ inicial, onClose }) {
           <Field label="Quantidade de parcelas"><input type="number" min="1" max="120" inputMode="numeric" placeholder="Ex.: 12" value={f.parcelas} onChange={set('parcelas')} /></Field>
           <Field label="Data (clique para abrir o calendário)"><input type="date" value={f.dataBase} onChange={set('dataBase')} /></Field>
           <div className="full"><OpcoesData modo={f.modoData} onChange={(m) => setF((x) => ({ ...x, modoData: m }))} nome="modoDataCliente" /></div>
-          <div className="full"><PainelCalculo calc={calc} /></div>
+          <div className="full"><PainelCalculo calc={calc} pagos={inicial?.pagos} /></div>
           {!(f.parcelas || f.dataBase) && (
             <>
               <Field label="Dia de vencimento"><input type="number" min="1" max="31" value={f.diaVencimento} onChange={set('diaVencimento')} /></Field>
@@ -168,6 +170,8 @@ export function DebtorDetail({ debtor, onClose, onEdit }) {
   const d = debtor
   const st = statusDe(d)
   const meus = logs.filter((l) => l.debtorId === d.id)
+  const parcelas = listaParcelas(d)
+  const contagem = (s) => parcelas.filter((p) => p.status === s).length
   const msg = `Olá ${d.nome.split(' ')[0]}! Passando para lembrar da parcela de ${brl(d.valorParcela)} com vencimento dia ${d.diaVencimento}.${pixKeys[0] ? ` PIX: ${pixKeys[0].chave} (${pixKeys[0].titular} - ${pixKeys[0].banco}).` : ''} Obrigado! — AH Crédito`
   const endereco = [d.endereco, d.numero, d.complemento, d.cidade, d.cep && 'CEP ' + d.cep].filter(Boolean).join(', ')
   const temBanco = d.banco || d.agencia || d.conta || d.chavePix
@@ -218,11 +222,40 @@ export function DebtorDetail({ debtor, onClose, onEdit }) {
         {d.totalAPagar ? <Dado k="Total a pagar" v={brl(d.totalAPagar)} /> : null}
         {d.valorJuros !== undefined && d.parcelas ? <Dado k="Valor dos juros" v={`${brl(d.valorJuros)}${d.jurosPctTotal !== undefined ? ` (${String(d.jurosPctTotal).replace('.', ',')}% no total)` : ''}`} /> : null}
         {d.dataContrato ? <Dado k="Início do contrato" v={fmtData(d.dataContrato)} /> : null}
-        {d.primeiroVencimento ? <Dado k="1º vencimento" v={fmtData(d.primeiroVencimento)} /> : null}
-        {d.ultimoVencimento ? <Dado k="Último vencimento" v={fmtData(d.ultimoVencimento)} /> : null}
+        {d.primeiroVencimento ? <Dado k="1º vencimento" v={fmtData(proximoDiaUtil(d.primeiroVencimento))} /> : null}
+        {d.ultimoVencimento ? <Dado k="Último vencimento" v={fmtData(proximoDiaUtil(d.ultimoVencimento))} /> : null}
         <Dado k="Meses pagos" v={(d.pagos || []).join(', ') || 'nenhum'} />
         <Dado k="Cadastrado em" v={d.criadoEm ? fmtData(d.criadoEm) : ''} />
       </Secao>
+
+      {parcelas.length > 0 && (
+        <section style={{ marginTop: 14 }}>
+          <div className="row between">
+            <h4 className="sec" style={{ flex: 1 }}>Parcelas</h4>
+            <span className="muted" style={{ fontSize: 12 }}>{contagem('pago')} paga(s) · {contagem('atrasado')} atrasada(s) · {contagem('em_dia')} em dia · vencimento em domingo vai para segunda</span>
+          </div>
+          <div className="tbl-wrap">
+            <table>
+              <thead><tr><th>Parcela</th><th>Vencimento</th><th>Valor</th><th>Situação</th><th>Ação</th></tr></thead>
+              <tbody>
+                {parcelas.map((p) => (
+                  <tr key={p.n}>
+                    <td>{p.n}ª de {parcelas.length}</td>
+                    <td>{fmtData(p.data)}</td>
+                    <td>{brl(p.valor)}</td>
+                    <td><SituacaoParcela status={p.status} /></td>
+                    <td>
+                      {p.status === 'pago'
+                        ? <button type="button" className="btn sm" onClick={() => unmarkPaid(d.id, p.mes)}>Desfazer</button>
+                        : <button type="button" className="btn sm green" onClick={() => markPaid(d.id, p.mes)}>Marcar pago</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       <Secao
         titulo="Dados bancários e PIX do cliente"

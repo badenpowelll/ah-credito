@@ -45,6 +45,32 @@ export const CAPITULOS = [
     dica: 'Saldo Atual = todas as entradas menos todas as saídas lançadas, sem depender do filtro.',
   },
   {
+    id: 'dash-carteira', grupo: 'dashboard', curto: 'Carteira e caixa', titulo: 'Carteira de empréstimos e caixa automático',
+    resumo: 'O Dashboard enxerga os empréstimos cadastrados: nada precisa ser digitado duas vezes.',
+    passos: [
+      'Abra Dashboard > Carteira de Empréstimos para ver clientes, total emprestado, a receber por mês, recebido no mês e em atraso.',
+      'Marque ou desmarque "Incluir os empréstimos no caixa". Marcado: cada valor emprestado entra como saída e cada parcela paga como entrada, e os cartões, os gráficos e a tabela de Movimentações já contam isso sozinhos.',
+      'Esses lançamentos aparecem com a etiqueta "automático". Para mudar um deles, abra o cliente em Empréstimos (botão "Ver em Empréstimos"): marcar uma parcela como paga cria a entrada, e desfazer a retira.',
+      'Desmarcado: o caixa mostra só os lançamentos feitos à mão em Nova Movimentação (despesas e receitas do negócio).',
+    ],
+    imagens: [['25-dashboard-carteira.jpg', 'Carteira de empréstimos e a opção de incluir os empréstimos no caixa']],
+    dica: 'Com a opção marcada, o saldo fica negativo enquanto os empréstimos concedidos superam o que já foi recebido. É o fluxo de caixa real: dinheiro que saiu e ainda não voltou.',
+  },
+  {
+    id: 'dash-projecao', grupo: 'dashboard', curto: 'Projeção 12 meses', titulo: 'Projeção dos próximos 12 meses',
+    resumo: 'Quanto ainda há para receber, mês a mês, dividido em capital (valor emprestado) e juros.',
+    passos: [
+      'Abra Dashboard > Projeção 12 meses.',
+      'Os cartões mostram: receber este mês, total de parcelas, juros e capital dos próximos 12 meses, e o valor das parcelas atrasadas, que já entram no mês atual.',
+      'O gráfico empilha, em cada mês, o capital (azul) e os juros (dourado). A soma dos dois é o valor das parcelas.',
+      'A tabela traz, por mês: quantidade de parcelas, capital, juros, o total a receber no mês e o acumulado. A última linha soma os 12 meses.',
+      'Como é calculado: parcelas já pagas não entram; os juros incidem sobre o saldo devedor de cada cliente (parcelas iguais); clientes sem parcelamento definido projetam a parcela mensal até quitar o valor emprestado, com os juros do cadastro. Parcelas de domingo vão para a segunda-feira.',
+    ],
+    imagens: [['26-dashboard-projecao.jpg', 'Projeção dos próximos 12 meses: cartões, gráfico e tabela']],
+    dica: 'A projeção se atualiza sozinha quando você cadastra clientes ou marca parcelas como pagas.',
+  },
+
+  {
     id: 'dash-graficos', grupo: 'dashboard', curto: 'Gráficos', titulo: 'Gráficos e situação dos clientes',
     resumo: 'Os gráficos mostram a evolução mês a mês e para onde vai o dinheiro.',
     passos: [
@@ -77,6 +103,7 @@ export const CAPITULOS = [
       'A lista segue o Ano e o Período do filtro, da mais recente para a mais antiga.',
       'Clique em Editar para corrigir um lançamento: ele volta para o formulário. Altere e clique em Atualizar.',
       'Clique em Excluir para remover. O sistema pede confirmação antes de apagar.',
+      'Linhas com a etiqueta "automático" vêm dos empréstimos (valor emprestado e parcelas pagas) e não são editadas aqui: use "Ver em Empréstimos".',
     ],
     imagens: [['05-dashboard-movimentacoes.jpg', 'Tabela de movimentações com os botões Editar e Excluir']],
     dica: 'Excluir uma movimentação é definitivo. Em caso de dúvida, edite em vez de apagar.',
@@ -114,7 +141,7 @@ export const CAPITULOS = [
       'Em Endereço, digite o CEP: ao completar os 8 números, o sistema busca sozinho a rua, o bairro e a cidade. Complete o número e o complemento.',
       'Em Empréstimo e parcelas, informe o valor emprestado, o valor da parcela e a quantidade de parcelas. Nos valores em reais, digite só os números: 1000 vira 1.000,00.',
       'Clique no campo Data para abrir o calendário e escolha o dia. Marque se a data é o início do contrato (a 1ª parcela vence 1 mês depois) ou o vencimento da 1ª parcela.',
-      'O quadro "Cálculo automático" mostra, sem você digitar nada: total a pagar, valor dos juros, juros em % no total, taxa ao mês, 1ª e última parcela e todas as datas. Exemplo: R$ 15.000,00 em 12x de R$ 1.500,00 dá total de R$ 18.000,00, juros de R$ 3.000,00 (20%) e cerca de 2,92% ao mês. O dia do vencimento também é definido sozinho.',
+      'O quadro "Cálculo automático" mostra, sem você digitar nada: total a pagar, valor dos juros, juros em % no total, taxa ao mês, 1ª e última parcela e todas as datas. Exemplo: R$ 15.000,00 em 12x de R$ 1.500,00 dá total de R$ 18.000,00, juros de R$ 3.000,00 (20%) e cerca de 2,92% ao mês. O dia do vencimento também é definido sozinho. Se uma parcela cair no domingo, ela passa para a segunda-feira (segunda a sábado contam como dia útil; feriados não são considerados). Ao lado de cada data aparece a situação: PAGO (verde), ATRASADO (vermelho) ou EM DIA (amarelo).',
       'Se o cliente não tem parcelamento fixo, deixe a quantidade e a data em branco: aparecem os campos Dia de vencimento e Juros (% ao mês) para preencher à mão.',
     ],
     imagens: [
@@ -151,6 +178,19 @@ export const CAPITULOS = [
       ['12-ficha-banco-pix.jpg', 'Ficha do cliente: empréstimo, dados bancários e PIX'],
     ],
     dica: 'Clientes cadastrados pelo link aparecem com a etiqueta "cadastrado pelo link".',
+  },
+  {
+    id: 'emp-parcelas', grupo: 'emprestimos', curto: 'Parcelas', titulo: 'Parcelas: situação e pagamento',
+    resumo: 'Cada cliente com parcelamento tem a lista das suas parcelas, com a situação de cada uma.',
+    passos: [
+      'Abra a ficha do cliente (clique no nome). A seção Parcelas lista todas as parcelas com vencimento, valor e situação.',
+      'A situação aparece ao lado de cada parcela: PAGO (verde), ATRASADO (vermelho: venceu e não foi paga) e EM DIA (amarelo: ainda não venceu).',
+      'Marcar pago registra o pagamento daquela parcela: ela vira PAGO e entra como entrada no caixa. Desfazer volta atrás.',
+      'Datas de vencimento: as parcelas vencem sempre em dia útil, contando de segunda a sábado. Se a data cair no domingo, passa para a segunda-feira. Feriados não são considerados.',
+      'O mesmo vale no formulário do cliente e no link de cadastro: a lista de datas mostra "caía no domingo" nas parcelas que mudaram de dia.',
+    ],
+    imagens: [['27-ficha-parcelas.jpg', 'Parcelas do cliente com a situação de cada uma e o botão Marcar pago']],
+    dica: 'No alto da seção, o resumo conta quantas parcelas estão pagas, atrasadas e em dia. Na imagem, a 4ª parcela (15/11/2026 caía no domingo) vence na segunda, 16/11.',
   },
   {
     id: 'emp-docs', grupo: 'emprestimos', curto: 'Documentos', titulo: 'Documentos pessoais do cliente',
@@ -208,7 +248,7 @@ export const CAPITULOS = [
       'Clique em Gerar Link de Cadastro.',
       'Informe o Valor Emprestado, o Valor da parcela e a Quantidade de parcelas.',
       'Clique no campo Data: abre um calendário para você escolher o dia. Depois marque o que a data significa: início do contrato (a 1ª parcela vence 30 dias, ou seja, 1 mês depois) ou vencimento da 1ª parcela.',
-      'O sistema calcula sozinho, em "Cálculo automático": total a pagar, valor dos juros, juros em % no total, taxa ao mês, 1ª e última parcela. "Ver as N datas de vencimento" lista todas as datas. Exemplo: R$ 1.000,00 em 12x de R$ 120,00, com contrato em 15/11/2026, dá 1ª parcela em 15/12/2026, última em 15/11/2027, total de R$ 1.440,00 e juros de R$ 440,00.',
+      'O sistema calcula sozinho, em "Cálculo automático": total a pagar, valor dos juros, juros em % no total, taxa ao mês, 1ª e última parcela. "Ver as N datas de vencimento" lista todas as datas. Exemplo: R$ 1.000,00 em 12x de R$ 120,00, com contrato em 15/11/2026, dá 1ª parcela em 15/12/2026, última em 15/11/2027, total de R$ 1.440,00 e juros de R$ 440,00. Se uma parcela cair no domingo, ela passa para a segunda-feira.',
       'Clique em Gerar Novo Link. O botão só libera quando os dados estão corretos; se as parcelas somarem menos que o valor emprestado, o sistema avisa.',
       'Use Copiar Link ou WhatsApp / Web para enviar ao cliente. A mensagem de cadastro já vai pronta.',
       'O cliente abre o link, vê o resumo do empréstimo, preenche nome, CPF, telefone, CEP e endereço e clica em Enviar cadastro.',
@@ -276,6 +316,24 @@ export const CAPITULOS = [
     dica: 'Excluir definitivamente não tem volta.',
   },
   {
+    id: 'auditoria', grupo: 'cuidados', curto: 'Auditoria', titulo: 'Auditoria (somente analista de sistemas)',
+    resumo: 'Menu exclusivo do analista de sistemas. Registra quem entrou e o que foi criado, alterado, excluído ou baixado, e quando.',
+    passos: [
+      'Entre com a conta do analista de sistemas. Só ela mostra o menu Auditoria; nas demais contas o menu não aparece e o servidor recusa o acesso.',
+      'Visão geral: registros, logins, logins recusados, alterações e usuários ativos nas últimas 24 horas, e a atividade dos últimos 14 dias.',
+      'Registro de atividades: data e hora, usuário, ação, item, detalhes e IP. Nas alterações, abra "campo(s)" para ver o valor antes e depois. Filtre por texto, usuário, ação, tipo de item e período, e use Exportar CSV.',
+      'Acessos: só entradas, saídas, logins recusados e acessos negados.',
+      'Usuários: quem tem acesso, o papel, o último acesso e quantas alterações fez.',
+      'Saúde do sistema: banco respondendo, tempo de resposta, tempo no ar, memória, quantidade de registros e espaço usado pelos documentos e pelo banco (plano de 1 GB). Atualiza sozinha a cada 30 segundos.',
+    ],
+    imagens: [
+      ['28-auditoria-resumo.jpg', 'Auditoria: visão geral das últimas 24 horas'],
+      ['29-auditoria-atividades.jpg', 'Auditoria: registro de atividades com filtros'],
+      ['30-auditoria-saude.jpg', 'Auditoria: saúde do sistema'],
+    ],
+    dica: 'Os registros não podem ser alterados nem apagados pelo sistema. Eles contêm dados pessoais: cuide da exportação (LGPD).',
+  },
+  {
     id: 'cuidados', grupo: 'cuidados', curto: 'Dúvidas e cuidados', titulo: 'Dúvidas frequentes e cuidados',
     resumo: 'Boas práticas para usar o sistema com segurança.',
     passos: [
@@ -284,6 +342,8 @@ export const CAPITULOS = [
       'Espaço: os documentos ocupam o espaço do banco (1 GB no plano atual). Prefira fotos e PDFs leves.',
       'Aviso vermelho "Não foi possível salvar": confira a internet e repita a ação. Os dados só são considerados salvos quando o aviso some.',
       'WhatsApp: a página de pré-visualização do WhatsApp pode mostrar "�" no lugar dos emojis. Por isso o sistema abre direto no aplicativo (botão WhatsApp) ou no WhatsApp Web (botão Web), onde os emojis aparecem certos.',
+      'Backup: o botão "⬇ Backup", no rodapé do menu lateral, baixa um arquivo com todos os dados cadastrados (clientes, movimentações, histórico e chaves PIX). Guarde-o em local seguro e baixe de tempos em tempos.',
+      'Sem internet: se a conexão cair, o sistema tenta salvar de novo sozinho por alguns segundos. Se o aviso vermelho continuar, confira a internet e repita a ação.',
       'Trocar a senha: o administrador altera a variável ADMIN_PASSWORD no painel da Railway.',
       'Dúvidas e suporte: entre em contato com a Argos Soluções pelos dados da sua proposta. Manutenção é cobrada por hora, apenas quando acionada.',
     ],
