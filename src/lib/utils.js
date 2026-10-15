@@ -114,3 +114,23 @@ export function baixarArquivo(nome, conteudo, tipo = 'text/csv;charset=utf-8') {
   a.click()
   URL.revokeObjectURL(url)
 }
+
+/** Moeda digitada: 1000 -> "1.000"; com vírgula mantém até 2 casas ("1.000,5"). */
+export function mascaraMoeda(texto) {
+  const t = String(texto).replace(/[^\d,]/g, '')
+  const i = t.indexOf(',')
+  const inteiro = (i < 0 ? t : t.slice(0, i)).replace(/^0+(?=\d)/, '')
+  const milhar = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+  if (i < 0) return milhar
+  return (milhar || '0') + ',' + t.slice(i + 1).replace(/,/g, '').slice(0, 2)
+}
+/** Valor final com duas casas: "1.000" -> "1.000,00". */
+export function completaMoeda(texto) {
+  const m = mascaraMoeda(texto)
+  if (!m) return ''
+  const [int, dec = ''] = m.split(',')
+  return int + ',' + dec.padEnd(2, '0')
+}
+export const parseMoeda = (texto) => parseFloat(String(texto).replace(/\./g, '').replace(',', '.')) || 0
+/** Número -> texto do campo ("1500" -> "1.500,00"). */
+export const moedaCampo = (n) => (n || n === 0 ? completaMoeda(String(Number(n).toFixed(2)).replace('.', ',')) : '')

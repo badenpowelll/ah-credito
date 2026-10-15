@@ -1,19 +1,18 @@
 import { useState } from 'react'
-import { Field, Modal } from './ui'
+import { Field, Modal, MoneyInput } from './ui'
 import { gerarLink, lerCodigo, msgCadastro, telefoneWhats } from '../lib/cadastro'
 import { useStore } from '../lib/store'
-import { useLocalStorage } from '../lib/utils'
+import { parseMoeda, useLocalStorage } from '../lib/utils'
 
 export default function GerarLink({ onClose }) {
   const [whats, setWhats] = useLocalStorage('ahc:whats-empresa', '')
   const [f, setF] = useState({ valor: '', juros: '', dia: '', fixo: false })
   const [link, setLink] = useState('')
   const [copiado, setCopiado] = useState('')
-  const num = (v) => parseFloat(String(v).replace(',', '.')) || 0
 
   const gerar = (e) => {
     e.preventDefault()
-    setLink(gerarLink({ v: num(f.valor), j: num(f.juros), d: Math.min(31, Math.max(1, parseInt(f.dia) || 1)), f: f.fixo, w: telefoneWhats(whats), t: Date.now().toString(36) }))
+    setLink(gerarLink({ v: parseMoeda(f.valor), j: parseMoeda(f.juros), d: Math.min(31, Math.max(1, parseInt(f.dia) || 1)), f: f.fixo, w: telefoneWhats(whats), t: Date.now().toString(36) }))
   }
   const copiar = async () => {
     try { await navigator.clipboard.writeText(link); setCopiado('Link copiado!') } catch { setCopiado('Selecione o link e copie (Ctrl+C).') }
@@ -24,8 +23,8 @@ export default function GerarLink({ onClose }) {
       <p className="muted" style={{ marginTop: -6 }}>Defina os valores do empréstimo e gere um link único para o cliente.</p>
       {!link ? (
         <form onSubmit={gerar} className="form" style={{ gridTemplateColumns: '1fr' }}>
-          <Field label="Valor Emprestado (R$) *"><input inputMode="decimal" placeholder="0,00" value={f.valor} onChange={(e) => setF({ ...f, valor: e.target.value })} required /></Field>
-          <Field label="Valor dos Juros (R$) *"><input inputMode="decimal" placeholder="0,00" value={f.juros} onChange={(e) => setF({ ...f, juros: e.target.value })} required /></Field>
+          <Field label="Valor Emprestado (R$) *"><MoneyInput value={f.valor} onChange={(v) => setF((x) => ({ ...x, valor: v }))} required /></Field>
+          <Field label="Valor dos Juros (R$) *"><MoneyInput value={f.juros} onChange={(v) => setF((x) => ({ ...x, juros: v }))} required /></Field>
           <Field label="Dia do Vencimento *">
             <label className="row" style={{ gap: 8, color: 'var(--text)' }}>
               <input type="checkbox" checked={f.fixo} onChange={(e) => setF({ ...f, fixo: e.target.checked })} style={{ width: 'auto' }} /> Dia fixo do mês

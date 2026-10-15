@@ -1,5 +1,5 @@
 import logo from '../assets/logo.jpg'
-import { useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { STATUS_LABEL, buscaCep, formataCep, soDigitos } from '../lib/utils'
 
 export function Modal({ title, onClose, children, wide }) {
@@ -59,4 +59,65 @@ export function CepField({ value, onChange, onFound, label = 'CEP', full }) {
       {msg.t && <small style={{ color: msg.ok ? 'var(--muted)' : 'var(--red)' }}>{msg.t}</small>}
     </Field>
   )
+}
+
+/**
+ * Campo em reais: ao digitar 1000 já mostra 1.000,00. O cursor fica antes da vírgula;
+ * digitar "," pula para os centavos.
+ */
+export function MoneyInput({ value, onChange, ...rest }) {
+  const ref = useRef(null)
+  const caret = useRef(null)
+
+  useLayoutEffect(() => {
+    if (caret.current != null && ref.current && document.activeElement === ref.current) {
+      ref.current.setSelectionRange(caret.current, caret.current)
+    }
+    caret.current = null
+  }, [value])
+
+  const mudou = (e) => {
+    const raw = e.target.value
+    const pos = e.target.selectionStart ?? raw.length
+    const digitos = (s) => s.replace(/\D/g, '')
+    const virgulas = (raw.match(/,/g) || []).length
+    let inteiro, dec, naCasaDecimal = false, k = 0, d = 0
+
+    if (virgulas > 1) {
+      // o usuário digitou ",": a vírgula nova está em pos-1; o cursor vai para os centavos
+      inteiro = digitos(raw.slice(0, pos - 1))
+      dec = digitos(raw.slice(pos)).slice(0, 2)
+      naCasaDecimal = true
+    } else if (virgulas === 0) {
+      inteiro = digitos(raw)
+      dec = ''
+      k = digitos(raw.slice(0, pos)).length
+    } else {
+      const ci = raw.indexOf(',')
+      inteiro = digitos(raw.slice(0, ci))
+      dec = digitos(raw.slice(ci + 1)).slice(0, 2)
+      if (pos <= ci) k = digitos(raw.slice(0, pos)).length
+      else { naCasaDecimal = true; d = Math.min(2, digitos(raw.slice(ci + 1, pos)).length) }
+    }
+    inteiro = inteiro.replace(/^0+(?=\d)/, '')
+    if (!inteiro && !/[1-9]/.test(dec)) { caret.current = null; return onChange('') }
+    if (!inteiro) inteiro = '0'
+    const milhar = inteiro.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
+    const texto = milhar + ',' + dec.padEnd(2, '0')
+
+    if (naCasaDecimal) caret.current = milhar.length + 1 + d
+    else {
+      let contados = 0, idx = 0
+      while (idx < milhar.length && contados < k) { if (milhar[idx] !== '.') contados++; idx++ }
+      caret.current = idx
+    }
+    onChange(texto)
+    // Se o texto não mudou (ex.: digitou "," antes dos centavos) o React não redesenha; fixa o cursor assim mesmo.
+    const alvo = caret.current
+    setTimeout(() => {
+      if (ref.current && document.activeElement === ref.current && alvo != null) ref.current.setSelectionRange(alvo, alvo)
+    }, 0)
+  }
+
+  return <input ref={ref} inputMode="decimal" placeholder="0,00" {...rest} value={value} onChange={mudou} />
 }

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { Field, Hero, StatusBadge } from '../components/ui'
+import { Field, Hero, MoneyInput, StatusBadge } from '../components/ui'
 import Robo from '../components/Robo'
 import { responder } from '../lib/consulta'
 import { useStore } from '../lib/store'
-import { MESES, brl, fmtData, hojeISO, statusDe } from '../lib/utils'
+import { MESES, brl, fmtData, hojeISO, moedaCampo, parseMoeda, statusDe } from '../lib/utils'
 
 const CORES = ['#d4a437', '#4c8dff', '#2fb36d', '#e5484d', '#a06cf0', '#35c2c9', '#f08c3c']
 const VAZIA = { data: hojeISO(), tipo: 'entrada', descricao: '', categoria: '', pagamento: 'PIX', valor: '' }
@@ -59,14 +59,14 @@ export default function Dashboard() {
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const salvar = (e) => {
     e.preventDefault()
-    const dados = { ...form, valor: parseFloat(String(form.valor).replace(',', '.')) || 0 }
+    const dados = { ...form, valor: parseMoeda(form.valor) }
     if (!dados.valor) return
     if (editId) updateTransaction(editId, dados)
     else addTransaction(dados)
     setForm(VAZIA)
     setEditId(null)
   }
-  const editar = (t) => { setForm({ ...t, valor: String(t.valor) }); setEditId(t.id); refs.current.nova?.scrollIntoView({ behavior: 'smooth' }) }
+  const editar = (t) => { setForm({ ...t, valor: moedaCampo(t.valor) }); setEditId(t.id); refs.current.nova?.scrollIntoView({ behavior: 'smooth' }) }
 
   return (
     <>
@@ -158,7 +158,7 @@ export default function Dashboard() {
                 {['PIX', 'Dinheiro', 'Transferência', 'Cartão', 'Boleto'].map((p) => <option key={p}>{p}</option>)}
               </select>
             </Field>
-            <Field label="Valor (R$)"><input inputMode="decimal" value={form.valor} onChange={set('valor')} required /></Field>
+            <Field label="Valor (R$)"><MoneyInput value={form.valor} onChange={(v) => setForm((f) => ({ ...f, valor: v }))} required /></Field>
           </div>
           <div className="row" style={{ marginTop: 14 }}>
             <button className="btn primary">{editId ? 'Atualizar' : 'Adicionar'}</button>
@@ -180,9 +180,11 @@ export default function Dashboard() {
                   <td><span className={'badge ' + (t.tipo === 'entrada' ? 'b-pago' : 'b-atrasado')}>{t.tipo === 'entrada' ? 'Entrada' : 'Saída'}</span></td>
                   <td>{t.descricao}</td><td>{t.categoria}</td><td>{t.pagamento}</td>
                   <td className={t.tipo === 'entrada' ? 'pos' : 'neg'}>{brl(t.valor)}</td>
-                  <td className="row">
-                    <button className="btn sm" onClick={() => editar(t)}>Editar</button>
-                    <button className="btn sm red" onClick={() => confirm('Excluir movimentação?') && deleteTransaction(t.id)}>Excluir</button>
+                  <td>
+                    <div className="row" style={{ flexWrap: 'nowrap' }}>
+                      <button className="btn sm" onClick={() => editar(t)}>Editar</button>
+                      <button className="btn sm red" onClick={() => confirm('Excluir movimentação?') && deleteTransaction(t.id)}>Excluir</button>
+                    </div>
                   </td>
                 </tr>
               ))}

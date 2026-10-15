@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { CepField, Field, Modal, StatusBadge } from './ui'
+import { CepField, Field, Modal, MoneyInput, StatusBadge } from './ui'
 import { useStore } from '../lib/store'
-import { brl, fmtData, statusDe, whatsLink } from '../lib/utils'
+import { brl, fmtData, moedaCampo, parseMoeda, statusDe, whatsLink } from '../lib/utils'
 
 const VAZIO = {
   nome: '', telefone: '', cpf: '', cep: '', endereco: '', numero: '', complemento: '', cidade: '', tipoEndereco: 'Residencial',
@@ -10,7 +10,7 @@ const VAZIO = {
 
 export function DebtorForm({ inicial, onClose }) {
   const { addDebtor, updateDebtor } = useStore()
-  const [f, setF] = useState(inicial ? { ...VAZIO, ...inicial } : VAZIO)
+  const [f, setF] = useState(inicial ? { ...VAZIO, ...inicial, valorEmprestado: moedaCampo(inicial.valorEmprestado), valorParcela: moedaCampo(inicial.valorParcela) } : VAZIO)
   const set = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.value }))
   const num = (v) => parseFloat(String(v).replace(',', '.')) || 0
 
@@ -19,8 +19,8 @@ export function DebtorForm({ inicial, onClose }) {
     e.preventDefault()
     const d = {
       ...f,
-      valorEmprestado: num(f.valorEmprestado),
-      valorParcela: num(f.valorParcela),
+      valorEmprestado: parseMoeda(f.valorEmprestado),
+      valorParcela: parseMoeda(f.valorParcela),
       jurosPct: num(f.jurosPct),
       diaVencimento: Math.min(31, Math.max(1, parseInt(f.diaVencimento) || 1)),
     }
@@ -43,8 +43,8 @@ export function DebtorForm({ inicial, onClose }) {
           <Field label="Número"><input value={f.numero} onChange={set('numero')} /></Field>
           <Field label="Complemento"><input value={f.complemento} onChange={set('complemento')} /></Field>
           <Field label="Cidade/UF"><input value={f.cidade} onChange={set('cidade')} /></Field>
-          <Field label="Valor emprestado (R$)"><input inputMode="decimal" value={f.valorEmprestado} onChange={set('valorEmprestado')} /></Field>
-          <Field label="Valor da parcela mensal (R$)"><input inputMode="decimal" value={f.valorParcela} onChange={set('valorParcela')} /></Field>
+          <Field label="Valor emprestado (R$)"><MoneyInput value={f.valorEmprestado} onChange={(v) => setF((x) => ({ ...x, valorEmprestado: v }))} /></Field>
+          <Field label="Valor da parcela mensal (R$)"><MoneyInput value={f.valorParcela} onChange={(v) => setF((x) => ({ ...x, valorParcela: v }))} /></Field>
           <Field label="Juros (% ao mês)"><input inputMode="decimal" value={f.jurosPct} onChange={set('jurosPct')} /></Field>
           <Field label="Dia de vencimento"><input type="number" min="1" max="31" value={f.diaVencimento} onChange={set('diaVencimento')} /></Field>
           <Field label="Chave PIX do cliente"><input value={f.chavePix} onChange={set('chavePix')} /></Field>
@@ -150,13 +150,15 @@ export function ClientesTab({ debtors, onEdit, onOpen, highlight }) {
                   <td>{brl(d.valorParcela)}</td>
                   <td>{brl(d.valorEmprestado)}</td>
                   <td><StatusBadge status={st} /></td>
-                  <td className="row">
-                    {st === 'pago'
-                      ? <button className="btn sm" onClick={() => unmarkPaid(d.id)}>Desfazer</button>
-                      : <button className="btn sm green" onClick={() => markPaid(d.id)}>Pago</button>}
-                    <button className="btn sm" onClick={() => onEdit(d)}>Editar</button>
-                    <button className="btn sm" onClick={() => onEdit({ ...d, id: undefined, nome: d.nome + ' (Cópia)' })}>Duplicar</button>
-                    <button className="btn sm red" onClick={() => trashDebtor(d.id)}>Lixeira</button>
+                  <td>
+                    <div className="row" style={{ flexWrap: 'nowrap' }}>
+                      {st === 'pago'
+                        ? <button className="btn sm" onClick={() => unmarkPaid(d.id)}>Desfazer</button>
+                        : <button className="btn sm green" onClick={() => markPaid(d.id)}>Pago</button>}
+                      <button className="btn sm" onClick={() => onEdit(d)}>Editar</button>
+                      <button className="btn sm" onClick={() => onEdit({ ...d, id: undefined, nome: d.nome + ' (Cópia)' })}>Duplicar</button>
+                      <button className="btn sm red" onClick={() => trashDebtor(d.id)}>Lixeira</button>
+                    </div>
                   </td>
                 </tr>
               )
