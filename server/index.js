@@ -6,6 +6,8 @@ import express from 'express'
 import jwt from 'jsonwebtoken'
 import { calcular } from '../shared/parcelas.js'
 import { diferenca, registrar, rotasAuditoria, rotuloDe } from './auditoria.js'
+import { rotasDemo } from './demo.js'
+import { iniciarMonitor, middlewareMetricas, registrarDesligamento } from './monitor.js'
 import { emTransacao, encerrarDb, iniciarDb, q } from './db.js'
 
 const aqui = path.dirname(fileURLToPath(import.meta.url))
@@ -27,6 +29,7 @@ const app = express()
 app.set('trust proxy', 1)
 app.disable('x-powered-by')
 app.use(express.json({ limit: '200kb' }))
+app.use(middlewareMetricas())
 app.use((req, res, next) => {
   // Referrer-Policy: o mapa precisa identificar o site (o OpenStreetMap recusa pedidos sem Referer)
   res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', 'X-Frame-Options': 'DENY' })
@@ -270,6 +273,7 @@ app.post('/api/public/cadastro/:token', limiteCadastro, asyncRota(async (req, re
 }))
 
 rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR })
+rotasDemo(app, { exigeLogin, asyncRota, hojeBR })
 
 // Saúde: confirma que o banco responde. Se falhar, devolve 503 e a Railway reinicia o serviço.
 app.get('/healthz', async (req, res) => {
@@ -356,12 +360,13 @@ const modo = await iniciarDb()
 await criarAdmin()
 await criarAcessosExtras()
 await criarAnalista()
+await iniciarMonitor()
 const servidor = app.listen(PORTA, () => console.log(`AH Crédito na porta ${PORTA} · banco: ${modo}`))
 
 // Desligamento limpo (a Railway avisa com SIGTERM em cada atualização): termina os pedidos em andamento antes de sair.
 const desligar = (sinal) => {
   console.log(`${sinal} recebido: encerrando…`)
-  servidor.close(async () => { await encerrarDb(); process.exit(0) })
+  servidor.close(async () => { await registrarDesligamento(); await encerrarDb(); process.exit(0) })
   setTimeout(() => process.exit(0), 8000).unref()
 }
 process.on('SIGTERM', () => desligar('SIGTERM'))

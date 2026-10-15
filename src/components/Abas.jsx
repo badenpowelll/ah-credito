@@ -89,7 +89,7 @@ export function MapaTab({ debtors, onOpen }) {
   useEffect(() => {
     let vivo = true
     ;(async () => {
-      const falta = comEndereco.filter((d) => geo[chave(d)] === undefined)
+      const falta = comEndereco.filter((d) => geo[chave(d)] === undefined && !(d.lat && d.lng))
       if (!falta.length) return
       setBuscando(true)
       for (const d of falta) {
@@ -103,7 +103,7 @@ export function MapaTab({ debtors, onOpen }) {
     return () => { vivo = false }
   }, [comEndereco.map(chave).join('#')]) // eslint-disable-line
 
-  const todos = comEndereco.map((d) => ({ d, g: geo[chave(d)], st: statusDe(d) }))
+  const todos = comEndereco.map((d) => ({ d, g: d.lat && d.lng ? { lat: d.lat, lng: d.lng } : geo[chave(d)], st: statusDe(d) }))
   const pontos = todos.filter((p) => p.g && (filtro === 'todos' || p.st === filtro))
   const semLocal = todos.filter((p) => p.g === null)
   const cont = (s) => todos.filter((p) => p.g && p.st === s).length

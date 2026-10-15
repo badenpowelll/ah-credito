@@ -188,6 +188,7 @@ export function DebtorDetail({ debtor, onClose, onEdit }) {
       <div className="row" style={{ marginBottom: 4 }}>
         <StatusBadge status={st} />
         {d.viaLink && <span className="badge b-a_cobrar">cadastrado pelo link</span>}
+        {d.demo && <span className="badge" style={{ background: 'rgba(160,108,240,.2)', color: '#c9a7ff' }}>demonstração</span>}
         {st === 'pago'
           ? <button className="btn sm" onClick={() => unmarkPaid(d.id)}>Desfazer pagamento</button>
           : <button className="btn sm green" onClick={() => markPaid(d.id)}>✔ Marcar como pago</button>}
@@ -336,7 +337,7 @@ export function ClientesTab({ debtors, onEdit, onOpen, highlight }) {
               const st = statusDe(d)
               return (
                 <tr key={d.id} className={highlight === d.id ? 'hl' : ''}>
-                  <td><a href="#" onClick={(e) => { e.preventDefault(); onOpen(d) }} className="gold"><b>{d.nome}</b></a>{d.viaLink && <span className="badge b-a_cobrar" style={{ marginLeft: 6 }}>via link</span>}<div className="muted" style={{ fontSize: 12 }}>{d.telefone}</div></td>
+                  <td><a href="#" onClick={(e) => { e.preventDefault(); onOpen(d) }} className="gold"><b>{d.nome}</b></a>{d.viaLink && <span className="badge b-a_cobrar" style={{ marginLeft: 6 }}>via link</span>}{d.demo && <span className="badge" style={{ marginLeft: 6, background: 'rgba(160,108,240,.2)', color: '#c9a7ff' }}>demonstração</span>}<div className="muted" style={{ fontSize: 12 }}>{d.telefone}</div></td>
                   <td>Dia {d.diaVencimento}</td>
                   <td>{brl(d.valorParcela)}</td>
                   <td>{brl(d.valorEmprestado)}</td>

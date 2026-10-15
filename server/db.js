@@ -33,6 +33,23 @@ CREATE TABLE IF NOT EXISTS itens (
   PRIMARY KEY (colecao, id)
 );
 CREATE INDEX IF NOT EXISTS itens_colecao_ordem_idx ON itens (colecao, ordem DESC);
+CREATE TABLE IF NOT EXISTS monitor_sla (
+  minuto timestamptz PRIMARY KEY,
+  ok boolean NOT NULL,
+  latencia_db_ms real,
+  requisicoes int NOT NULL DEFAULT 0,
+  erros5xx int NOT NULL DEFAULT 0,
+  lat_media_ms real,
+  lat_p95_ms real,
+  memoria_mb int,
+  boot_id text
+);
+CREATE TABLE IF NOT EXISTS monitor_eventos (
+  id bigserial PRIMARY KEY,
+  quando timestamptz NOT NULL DEFAULT now(),
+  tipo text NOT NULL,
+  detalhe jsonb
+);
 CREATE TABLE IF NOT EXISTS links_cadastro (
   token text PRIMARY KEY,
   dados jsonb NOT NULL,

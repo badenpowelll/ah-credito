@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Field, Hero } from '../components/ui'
 import { api } from '../lib/api'
+import { useStore } from '../lib/store'
 import { fmtBytes } from '../lib/utils'
 
 const ACAO = {
@@ -11,6 +12,7 @@ const ACAO = {
   documento_enviar: ['Anexou documento', 'b-pago'], documento_ver: ['Visualizou documento', ''], documento_baixar: ['Baixou documento', ''], documento_excluir: ['Excluiu documento', 'b-atrasado'],
   backup: ['Baixou backup', 'b-a_cobrar'], link_gerar: ['Gerou link de cadastro', ''], cadastro_publico: ['Cliente se cadastrou pelo link', 'b-pago'],
   acesso_negado: ['Acesso negado', 'b-atrasado'], auditoria_exportar: ['Exportou a auditoria', 'b-a_cobrar'],
+  demo_criar: ['Criou dados de demonstração', 'b-a_cobrar'], demo_remover: ['Removeu dados de demonstração', 'b-a_cobrar'],
 }
 const ENTIDADE = { debtors: 'Cliente', transactions: 'Movimentação', pix: 'Chave PIX', logs: 'Histórico', documentos: 'Documento', links: 'Link', sistema: 'Sistema', auditoria: 'Auditoria' }
 const CAMPO = {
@@ -176,6 +178,12 @@ export default function Auditoria() {
   const [resumo, setResumo] = useState(null)
   const [usuarios, setUsuarios] = useState([])
   const [saude, setSaude] = useState(null)
+  const [sla, setSla] = useState(null)
+  const [demo, setDemo] = useState(null)
+  const [demoMsg, setDemoMsg] = useState('')
+  const [confirmar, setConfirmar] = useState('')
+  const [ocupado, setOcupado] = useState(false)
+  const { recarregar } = useStore()
   const [erro, setErro] = useState('')
 
   useEffect(() => {
@@ -187,8 +195,8 @@ export default function Auditoria() {
 
   const atualizar = useCallback(async () => {
     try {
-      const [r, u, s] = await Promise.all([api.get('/auditoria/resumo'), api.get('/auditoria/usuarios'), api.get('/auditoria/saude')])
-      setResumo(r); setUsuarios(u); setSaude(s); setErro('')
+      const [r, u, s, l, d] = await Promise.all([api.get('/auditoria/resumo'), api.get('/auditoria/usuarios'), api.get('/auditoria/saude'), api.get('/auditoria/sla'), api.get('/demo')])
+      setResumo(r); setUsuarios(u); setSaude(s); setSla(l); setDemo(d); setErro('')
     } catch (e) {
       setErro(e.message)
     }
@@ -199,6 +207,22 @@ export default function Auditoria() {
     return () => clearInterval(id)
   }, [atualizar])
 
+  const executarDemo = async (acao) => {
+    setOcupado(true); setDemoMsg(''); setConfirmar('')
+    try {
+      if (acao === 'remover') await api.del('/demo')
+      else await api.post('/demo/criar', { quantidade: 80, refazer: acao === 'refazer' })
+      setDemoMsg(acao === 'remover' ? 'Dados de demonstração removidos.' : 'Dados de demonstração criados.')
+      await recarregar()
+      await atualizar()
+    } catch (e) {
+      setDemoMsg(e.message)
+    }
+    setOcupado(false)
+  }
+  const pct = (v) => String(v).replace('.', ',') + '%'
+  const dataHora = (iso) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
+  const janelas = [['24h', 'últimas 24 horas'], ['7d', 'últimos 7 dias'], ['30d', 'últimos 30 dias']]
   const dias = (resumo?.dias || []).map((d) => ({ dia: d.dia.slice(8) + '/' + d.dia.slice(5, 7), Eventos: d.eventos, Alterações: d.alteracoes, 'Logins recusados': d.falhas }))
 
   return (
@@ -260,6 +284,93 @@ export default function Auditoria() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section ref={reg('sla')}>
+        <div className="row between" style={{ marginBottom: 10 }}>
+          <h2 style={{ fontSize: 18 }}>Monitoramento de SLA</h2>
+          <span className="muted" style={{ fontSize: 12 }}>Meta: {sla ? pct(sla.meta) : '—'} de disponibilidade · medição a cada 1 minuto</span>
+        </div>
+        {!sla?.janelas?.['24h'] ? (
+          <div className="card empty">Coletando as primeiras medições (a primeira aparece em até 1 minuto).</div>
+        ) : (
+          <>
+            <div className="grid g5" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}>
+              {janelas.map(([k, rot]) => {
+                const j = sla.janelas[k]
+                return (
+                  <div key={k} className="card kpi">
+                    <small>Disponibilidade — {rot}</small>
+                    <b className={j.dentroDaMeta ? 'pos' : 'neg'}>{pct(j.disponibilidade)}</b>
+                    <div className="row" style={{ marginTop: 6 }}>
+                      <span className={'badge ' + (j.dentroDaMeta ? 'b-pago' : 'b-atrasado')}>{j.dentroDaMeta ? 'Dentro da meta' : 'Abaixo da meta'}</span>
+                      {j.historicoCurto && <span className="badge b-a_cobrar">histórico curto</span>}
+                    </div>
+                    <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>{j.minutosFora} min fora do ar em {j.minutos} min medidos</div>
+                  </div>
+                )
+              })}
+            </div>
+            <div className="grid g5" style={{ marginTop: 14 }}>
+              <div className="card kpi"><small>Resposta média (7 dias)</small><b>{sla.janelas['7d'].respostaMediaMs ?? '—'}{sla.janelas['7d'].respostaMediaMs != null && ' ms'}</b></div>
+              <div className="card kpi"><small>Resposta p95 (7 dias)</small><b>{sla.janelas['7d'].respostaP95Ms ?? '—'}{sla.janelas['7d'].respostaP95Ms != null && ' ms'}</b></div>
+              <div className="card kpi"><small>Taxa de erro 5xx (7 dias)</small><b className={sla.janelas['7d'].taxaErro > 1 ? 'neg' : ''}>{pct(sla.janelas['7d'].taxaErro)}</b><div className="muted" style={{ fontSize: 12 }}>{sla.janelas['7d'].erros5xx} em {sla.janelas['7d'].requisicoes} pedidos</div></div>
+              <div className="card kpi"><small>Banco: resposta média</small><b>{sla.janelas['7d'].bancoMedioMs ?? '—'}{sla.janelas['7d'].bancoMedioMs != null && ' ms'}</b></div>
+              <div className="card kpi"><small>Reinícios (30 dias)</small><b>{sla.janelas['30d'].reinicios}</b></div>
+            </div>
+            <div className="card" style={{ marginTop: 14 }}>
+              <h3>Disponibilidade por dia</h3>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={sla.diario.map((d) => ({ dia: d.dia.slice(8) + '/' + d.dia.slice(5, 7), Disponibilidade: d.disponibilidade }))}>
+                  <CartesianGrid stroke="#2c2c33" /><XAxis dataKey="dia" stroke="#9b968a" />
+                  <YAxis stroke="#9b968a" domain={[(min) => Math.max(0, Math.floor(min) - 1), 100]} tickFormatter={(v) => v + '%'} />
+                  <Tooltip formatter={(v) => pct(v)} contentStyle={{ background: '#151518', border: '1px solid #2c2c33' }} />
+                  <Bar dataKey="Disponibilidade" fill="#2fb36d" />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="card tbl-wrap" style={{ marginTop: 14 }}>
+              <h3>Incidentes (períodos de 2 minutos ou mais sem resposta)</h3>
+              <table>
+                <thead><tr><th>Início</th><th>Fim</th><th>Duração</th><th>Motivo provável</th></tr></thead>
+                <tbody>
+                  {sla.incidentes.length === 0 && <tr><td colSpan="4" className="empty">Nenhum incidente no período medido. 🎉</td></tr>}
+                  {sla.incidentes.map((i) => <tr key={i.inicio}><td>{dataHora(i.inicio)}</td><td>{dataHora(i.fim)}</td><td>{i.minutos} min</td><td>{i.motivo}</td></tr>)}
+                </tbody>
+              </table>
+            </div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>
+              Como é medido: o próprio servidor testa o banco e resume os pedidos a cada minuto. Um minuto sem registro conta como indisponível (servidor fora do ar não consegue se registrar); 1 minuto isolado é tolerado. As atualizações do sistema geram reinícios curtos, que aparecem como incidente se passarem de 1 minuto.
+              O histórico começa em {sla.desde ? dataHora(sla.desde) : '—'} e guarda 90 dias. Esta medição não vê falhas da internet do usuário nem da Railway antes de chegar ao servidor: para isso, use também um monitor externo apontado para /healthz.
+            </div>
+          </>
+        )}
+      </section>
+
+      <section ref={reg('demo')}>
+        <h2 style={{ fontSize: 18, marginBottom: 10 }}>Dados de demonstração</h2>
+        <div className="card">
+          <p className="muted" style={{ marginTop: 0 }}>
+            Cria cadastros fictícios para validar e demonstrar o sistema: 80 clientes com parcelas, pagamentos e atrasos, movimentações, chaves PIX, histórico, documentos de exemplo, pontos no mapa e 4 clientes na lixeira.
+            Tudo fica marcado como "demonstração" e pode ser removido de uma vez, sem afetar os cadastros reais.
+          </p>
+          <div className="neg" style={{ fontSize: 13, marginBottom: 8 }}>As chaves PIX de demonstração têm valores falsos ("CHAVE-DEMO-NAO-PAGAR"). Remova os dados de demonstração antes de enviar cobranças reais.</div>
+          <div className="muted" style={{ marginBottom: 10 }}>
+            {demo?.existe
+              ? <>Existem agora: <b>{demo.clientes}</b> clientes, <b>{demo.lixeira}</b> na lixeira, <b>{demo.movimentacoes}</b> movimentações, <b>{demo.chavesPix}</b> chaves PIX, <b>{demo.historico}</b> registros de histórico e <b>{demo.documentos}</b> documentos.</>
+              : 'Nenhum dado de demonstração cadastrado.'}
+          </div>
+          <div className="row">
+            {!demo?.existe && <button className="btn primary" disabled={ocupado} onClick={() => executarDemo('criar')}>{ocupado ? 'Criando…' : 'Criar 80 cadastros de demonstração'}</button>}
+            {demo?.existe && (confirmar === 'refazer'
+              ? <><button className="btn red" disabled={ocupado} onClick={() => executarDemo('refazer')}>Confirmar: apagar e recriar</button><button className="btn" onClick={() => setConfirmar('')}>Cancelar</button></>
+              : <button className="btn" disabled={ocupado} onClick={() => setConfirmar('refazer')}>Refazer (apaga e recria)</button>)}
+            {demo?.existe && (confirmar === 'remover'
+              ? <><button className="btn red" disabled={ocupado} onClick={() => executarDemo('remover')}>Confirmar: remover dados de demonstração</button><button className="btn" onClick={() => setConfirmar('')}>Cancelar</button></>
+              : <button className="btn" disabled={ocupado} onClick={() => setConfirmar('remover')}>Remover dados de demonstração</button>)}
+          </div>
+          {demoMsg && <div className={demoMsg.startsWith('Dados') ? 'pos' : 'neg'} style={{ marginTop: 10 }} role="status">{demoMsg}</div>}
         </div>
       </section>
 

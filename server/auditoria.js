@@ -1,4 +1,5 @@
 import { q } from './db.js'
+import { calcularSla } from './monitor.js'
 
 const INICIADO_EM = new Date()
 const PRIMEIRA_LINHA = (v, max = 200) => (v == null ? null : String(v).slice(0, max))
@@ -58,9 +59,9 @@ function filtros(query) {
 
 const csv = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`
 
-/** Rotas da auditoria. Todas exigem login E o papel "analista" (verificado no banco a cada pedido). */
-export function rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR }) {
-  const exigeAnalista = [
+/** Exige login E o papel "analista" (verificado no banco a cada pedido). Quem não é analista fica registrado como acesso negado. */
+export function criarExigeAnalista(exigeLogin) {
+  return [
     exigeLogin,
     async (req, res, next) => {
       try {
@@ -74,6 +75,11 @@ export function rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR }) {
       }
     },
   ]
+}
+
+/** Rotas da auditoria. Todas exigem o papel "analista". */
+export function rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR }) {
+  const exigeAnalista = criarExigeAnalista(exigeLogin)
 
   app.get('/api/auditoria', ...exigeAnalista, asyncRota(async (req, res) => {
     const limite = Math.min(200, Math.max(10, parseInt(req.query.limite, 10) || 100))
@@ -132,6 +138,8 @@ export function rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR }) {
       FROM usuarios u ORDER BY u.criado_em`)
     res.json(r.rows)
   }))
+
+  app.get('/api/auditoria/sla', ...exigeAnalista, asyncRota(async (req, res) => res.json(await calcularSla())))
 
   app.get('/api/auditoria/saude', ...exigeAnalista, asyncRota(async (req, res) => {
     const t0 = process.hrtime.bigint()

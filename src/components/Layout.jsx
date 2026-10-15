@@ -75,7 +75,9 @@ export const MENU_AUDITORIA = {
     { id: 'atividades', label: 'Registro de atividades' },
     { id: 'acessos', label: 'Acessos' },
     { id: 'usuarios', label: 'Usuários' },
+    { id: 'sla', label: 'Monitoramento de SLA' },
     { id: 'saude', label: 'Saúde do sistema' },
+    { id: 'demo', label: 'Dados de demonstração' },
   ],
 }
 
