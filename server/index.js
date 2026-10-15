@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import bcrypt from 'bcryptjs'
 import express from 'express'
 import jwt from 'jsonwebtoken'
+import { calcular } from '../shared/parcelas.js'
 import { emTransacao, iniciarDb, q } from './db.js'
 
 const aqui = path.dirname(fileURLToPath(import.meta.url))
@@ -26,7 +27,7 @@ app.set('trust proxy', 1)
 app.disable('x-powered-by')
 app.use(express.json({ limit: '200kb' }))
 app.use((req, res, next) => {
-  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'same-origin', 'X-Frame-Options': 'DENY' })
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'strict-origin-when-cross-origin', // o mapa precisa identificar o site (o OpenStreetMap recusa pedidos sem Referer) 'X-Frame-Options': 'DENY' })
   next()
 })
 
@@ -180,12 +181,14 @@ app.get('/api/armazenamento', exigeLogin, asyncRota(async (req, res) => {
 
 /* ---------- link de cadastro do cliente ---------- */
 app.post('/api/links', exigeLogin, asyncRota(async (req, res) => {
-  const n = (v) => Math.max(0, Number(v) || 0)
+  const modo = req.body?.modo === 'parcela' ? 'parcela' : 'inicio'
+  const c = calcular({ valor: req.body?.v, parcela: req.body?.p, n: req.body?.n, data: req.body?.data, modo })
+  if (!c) return res.status(400).json({ erro: 'Confira o valor, a parcela, a quantidade de parcelas (1 a 120) e a data.' })
+  if (c.semJuros) return res.status(400).json({ erro: 'As parcelas somam menos que o valor emprestado. Confira o valor da parcela.' })
+  // os números derivados são recalculados aqui, no servidor, e não vêm prontos da tela
   const dados = {
-    v: n(req.body?.v),
-    j: n(req.body?.j),
-    d: Math.min(31, Math.max(1, parseInt(req.body?.d, 10) || 1)),
-    f: Boolean(req.body?.f),
+    v: c.valor, p: c.parcela, n: c.n, modo, data: req.body.data,
+    primeira: c.primeira, ultima: c.ultima, total: c.total, juros: c.juros, jurosPctTotal: c.jurosPctTotal, taxaMes: c.taxaMes,
   }
   const token = crypto.randomBytes(16).toString('base64url')
   await q('INSERT INTO links_cadastro (token, dados) VALUES ($1, $2::jsonb)', [token, JSON.stringify(dados)])
@@ -217,13 +220,18 @@ app.post('/api/public/cadastro/:token', limiteCadastro, asyncRota(async (req, re
     if (!link.rows[0]) return null
     const t = link.rows[0].dados
     const id = crypto.randomBytes(8).toString('hex')
+    const novo = t.p !== undefined // links antigos (valor + juros mensal + dia) continuam funcionando
+    const emprestimo = novo
+      ? {
+          valorEmprestado: t.v, valorParcela: t.p, jurosPct: t.taxaMes ?? 0, diaVencimento: Number(t.primeira.slice(8, 10)),
+          parcelas: t.n, primeiroVencimento: t.primeira, ultimoVencimento: t.ultima, totalAPagar: t.total, valorJuros: t.juros,
+          jurosPctTotal: t.jurosPctTotal, dataContrato: t.modo === 'inicio' ? t.data : null,
+        }
+      : { valorEmprestado: t.v, valorParcela: t.j, jurosPct: t.v ? +((t.j / t.v) * 100).toFixed(2) : 0, diaVencimento: t.d }
     const debtor = {
       ...cliente,
       id,
-      valorEmprestado: t.v,
-      valorParcela: t.j,
-      jurosPct: t.v ? +((t.j / t.v) * 100).toFixed(2) : 0,
-      diaVencimento: t.d,
+      ...emprestimo,
       pagos: [],
       criadoEm: hojeBR(),
       viaLink: true,

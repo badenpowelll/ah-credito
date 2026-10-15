@@ -183,6 +183,12 @@ export function DebtorDetail({ debtor, onClose, onEdit }) {
         <Dado k="Parcela mensal" v={brl(d.valorParcela)} />
         <Dado k="Juros" v={`${d.jurosPct || 0}% ao mês`} />
         <Dado k="Vencimento" v={`Dia ${d.diaVencimento}`} />
+        {d.parcelas ? <Dado k="Parcelamento" v={`${d.parcelas}x de ${brl(d.valorParcela)}`} /> : null}
+        {d.totalAPagar ? <Dado k="Total a pagar" v={brl(d.totalAPagar)} /> : null}
+        {d.valorJuros !== undefined && d.parcelas ? <Dado k="Valor dos juros" v={`${brl(d.valorJuros)}${d.jurosPctTotal !== undefined ? ` (${String(d.jurosPctTotal).replace('.', ',')}% no total)` : ''}`} /> : null}
+        {d.dataContrato ? <Dado k="Início do contrato" v={fmtData(d.dataContrato)} /> : null}
+        {d.primeiroVencimento ? <Dado k="1º vencimento" v={fmtData(d.primeiroVencimento)} /> : null}
+        {d.ultimoVencimento ? <Dado k="Último vencimento" v={fmtData(d.ultimoVencimento)} /> : null}
         <Dado k="Meses pagos" v={(d.pagos || []).join(', ') || 'nenhum'} />
         <Dado k="Cadastrado em" v={d.criadoEm ? fmtData(d.criadoEm) : ''} />
       </Secao>

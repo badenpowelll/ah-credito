@@ -203,11 +203,13 @@ export const CAPITULOS = [
     resumo: 'O cliente preenche os próprios dados por um link, e o cadastro cai direto na lista de Clientes.',
     passos: [
       'Clique em Gerar Link de Cadastro.',
-      'Informe o Valor Emprestado, o Valor dos Juros e o Dia do Vencimento. Marque "Dia fixo do mês" se for o caso.',
-      'Clique em Gerar Novo Link.',
+      'Informe o Valor Emprestado, o Valor da parcela e a Quantidade de parcelas.',
+      'Clique no campo Data: abre um calendário para você escolher o dia. Depois marque o que a data significa: início do contrato (a 1ª parcela vence 30 dias, ou seja, 1 mês depois) ou vencimento da 1ª parcela.',
+      'O sistema calcula sozinho, em "Cálculo automático": total a pagar, valor dos juros, juros em % no total, taxa ao mês, 1ª e última parcela. "Ver as N datas de vencimento" lista todas as datas. Exemplo: R$ 1.000,00 em 12x de R$ 120,00, com contrato em 15/11/2026, dá 1ª parcela em 15/12/2026, última em 15/11/2027, total de R$ 1.440,00 e juros de R$ 440,00.',
+      'Clique em Gerar Novo Link. O botão só libera quando os dados estão corretos; se as parcelas somarem menos que o valor emprestado, o sistema avisa.',
       'Use Copiar Link ou WhatsApp / Web para enviar ao cliente. A mensagem de cadastro já vai pronta.',
       'O cliente abre o link, vê o resumo do empréstimo, preenche nome, CPF, telefone, CEP e endereço e clica em Enviar cadastro.',
-      'O cadastro aparece sozinho em Clientes, com a etiqueta "via link". Se a tela estiver aberta, ela se atualiza em até 45 segundos.',
+      'O cadastro aparece sozinho em Clientes, com a etiqueta "via link". Na ficha do cliente ficam gravados o parcelamento, o total a pagar, os juros e o 1º e o último vencimento. Se a tela estiver aberta, ela se atualiza em até 45 segundos.',
     ],
     imagens: [
       ['17-gerar-link-valores.jpg', 'Janela Gerar Link de Cadastro com os valores preenchidos'],

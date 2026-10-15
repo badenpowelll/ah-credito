@@ -21,6 +21,7 @@ function fichaCliente(d, logs) {
     `Endereço: ${[d.endereco, d.numero, d.complemento, d.cidade, d.cep && 'CEP ' + d.cep].filter(Boolean).join(', ') || 'não cadastrado'}`,
     `Emprestado: ${brl(d.valorEmprestado)} · Parcela mensal: ${brl(d.valorParcela)} · Juros: ${d.jurosPct || 0}% a.m.`,
     `Vencimento: dia ${d.diaVencimento} · Meses pagos: ${(d.pagos || []).join(', ') || 'nenhum'}`,
+    d.parcelas ? `Parcelamento: ${d.parcelas}x de ${brl(d.valorParcela)} · total ${brl(d.totalAPagar)} · juros ${brl(d.valorJuros)} · de ${fmtData(d.primeiroVencimento)} até ${fmtData(d.ultimoVencimento)}` : null,
     d.cpf ? `CPF: ${d.cpf}${d.rg ? ` · RG: ${d.rg}` : ''}${d.email ? ` · E-mail: ${d.email}` : ''}` : null,
     d.banco || d.agencia || d.conta
       ? `Banco: ${[d.banco, d.agencia && `ag. ${d.agencia}`, d.conta && `conta ${d.conta}${d.tipoConta ? ` (${d.tipoConta})` : ''}`, d.titularConta && `titular ${d.titularConta}`].filter(Boolean).join(' · ')}`
