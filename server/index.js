@@ -61,13 +61,20 @@ function lerCookie(req, nome) {
   return null
 }
 
-function exigeLogin(req, res, next) {
+async function exigeLogin(req, res, next) {
   try {
     const t = lerCookie(req, COOKIE)
     req.usuario = jwt.verify(t, SEGREDO).sub
-    next()
   } catch {
-    res.status(401).json({ erro: 'Sessão expirada. Entre novamente.' })
+    return res.status(401).json({ erro: 'Sessão expirada. Entre novamente.' })
+  }
+  try {
+    // usuário removido perde o acesso na hora, mesmo com a sessão ainda válida
+    if (!(await q('SELECT 1 FROM usuarios WHERE usuario = $1', [req.usuario])).rows[0]) return res.status(401).json({ erro: 'Sessão expirada. Entre novamente.' })
+    next()
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ erro: 'Erro interno do servidor.' })
   }
 }
 

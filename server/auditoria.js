@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs'
 import { q } from './db.js'
 import { calcularSla } from './monitor.js'
 
@@ -77,6 +78,14 @@ export function criarExigeAnalista(exigeLogin) {
   ]
 }
 
+/** Usuários que o servidor recria a cada início (variáveis de ambiente). */
+function usuariosDoAmbiente() {
+  const s = new Set()
+  for (const v of [process.env.ADMIN_USER, process.env.ANALISTA_USER]) if (v) s.add(String(v).trim().toLowerCase())
+  for (const par of String(process.env.ACESSOS_EXTRAS || '').split(';')) { const i = par.indexOf(':'); if (i > 0) s.add(par.slice(0, i).trim().toLowerCase()) }
+  return s
+}
+
 /** Rotas da auditoria. Todas exigem o papel "analista". */
 export function rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR }) {
   const exigeAnalista = criarExigeAnalista(exigeLogin)
@@ -136,7 +145,49 @@ export function rotasAuditoria(app, { exigeLogin, asyncRota, hojeBR }) {
     const r = await q(`SELECT u.usuario, u.papel, u.criado_em, u.ultimo_acesso,
       (SELECT count(*)::int FROM auditoria a WHERE a.usuario = u.usuario AND a.acao IN ('criar', 'alterar', 'excluir')) AS alteracoes
       FROM usuarios u ORDER BY u.criado_em`)
-    res.json(r.rows)
+    const fixos = usuariosDoAmbiente()
+    res.json(r.rows.map((u) => ({ ...u, fixo: fixos.has(u.usuario) })))
+  }))
+
+  // Gestão de usuários (só o analista): criar, trocar senha e remover. Usuários definidos nas variáveis do servidor são recriados a cada reinício, por isso ficam protegidos.
+  const validarSenha = (s) => (typeof s === 'string' && s.length >= 6 && s.length <= 100 ? null : 'A senha precisa ter de 6 a 100 caracteres.')
+
+  app.post('/api/auditoria/usuarios', ...exigeAnalista, asyncRota(async (req, res) => {
+    const usuario = String(req.body?.usuario || '').trim().toLowerCase()
+    const senha = req.body?.senha
+    if (!/^[a-z0-9._@+-]{3,80}$/.test(usuario)) return res.status(400).json({ erro: 'Usuário inválido: use de 3 a 80 letras minúsculas, números e . _ @ + -' })
+    const e = validarSenha(senha)
+    if (e) return res.status(400).json({ erro: e })
+    const r = await q('INSERT INTO usuarios (usuario, senha_hash) VALUES ($1, $2) ON CONFLICT (usuario) DO NOTHING RETURNING usuario', [usuario, await bcrypt.hash(senha, 10)])
+    if (!r.rows[0]) return res.status(409).json({ erro: 'Já existe um usuário com esse nome.' })
+    await registrar(req, 'usuario_criar', { entidade: 'usuario', id: usuario })
+    res.status(201).json({ usuario })
+  }))
+
+  const alvo = async (req, res) => {
+    const usuario = String(req.params.usuario || '').toLowerCase()
+    const r = await q('SELECT papel FROM usuarios WHERE usuario = $1', [usuario])
+    if (!r.rows[0]) { res.status(404).json({ erro: 'Usuário não encontrado.' }); return null }
+    if (usuariosDoAmbiente().has(usuario) || r.rows[0].papel === 'analista') {
+      res.status(403).json({ erro: 'Este usuário é definido nas configurações do servidor (Railway) e não pode ser alterado aqui.' }); return null
+    }
+    return usuario
+  }
+
+  app.put('/api/auditoria/usuarios/:usuario/senha', ...exigeAnalista, asyncRota(async (req, res) => {
+    const usuario = await alvo(req, res); if (!usuario) return
+    const e = validarSenha(req.body?.senha)
+    if (e) return res.status(400).json({ erro: e })
+    await q('UPDATE usuarios SET senha_hash = $2 WHERE usuario = $1', [usuario, await bcrypt.hash(req.body.senha, 10)])
+    await registrar(req, 'usuario_senha', { entidade: 'usuario', id: usuario })
+    res.json({ ok: true })
+  }))
+
+  app.delete('/api/auditoria/usuarios/:usuario', ...exigeAnalista, asyncRota(async (req, res) => {
+    const usuario = await alvo(req, res); if (!usuario) return
+    await q('DELETE FROM usuarios WHERE usuario = $1', [usuario])
+    await registrar(req, 'usuario_remover', { entidade: 'usuario', id: usuario })
+    res.json({ ok: true })
   }))
 
   app.get('/api/auditoria/sla', ...exigeAnalista, asyncRota(async (req, res) => res.json(await calcularSla())))

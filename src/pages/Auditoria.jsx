@@ -12,6 +12,7 @@ const ACAO = {
   documento_enviar: ['Anexou documento', 'b-pago'], documento_ver: ['Visualizou documento', ''], documento_baixar: ['Baixou documento', ''], documento_excluir: ['Excluiu documento', 'b-atrasado'],
   backup: ['Baixou backup', 'b-a_cobrar'], link_gerar: ['Gerou link de cadastro', ''], cadastro_publico: ['Cliente se cadastrou pelo link', 'b-pago'],
   acesso_negado: ['Acesso negado', 'b-atrasado'], auditoria_exportar: ['Exportou a auditoria', 'b-a_cobrar'],
+  usuario_criar: ['Criou usuário', 'b-a_cobrar'], usuario_senha: ['Trocou senha de usuário', 'b-a_cobrar'], usuario_remover: ['Removeu usuário', 'b-a_cobrar'],
   demo_criar: ['Criou dados de demonstração', 'b-a_cobrar'], demo_remover: ['Removeu dados de demonstração', 'b-a_cobrar'],
 }
 const ENTIDADE = { debtors: 'Cliente', transactions: 'Movimentação', pix: 'Chave PIX', logs: 'Histórico', documentos: 'Documento', links: 'Link', sistema: 'Sistema', auditoria: 'Auditoria' }
@@ -182,6 +183,12 @@ export default function Auditoria() {
   const [demo, setDemo] = useState(null)
   const [demoMsg, setDemoMsg] = useState('')
   const [confirmar, setConfirmar] = useState('')
+  const [novo, setNovo] = useState({ usuario: '', senha: '' })
+  const [uMsg, setUMsg] = useState({ ok: true, t: '' })
+  const [trocando, setTrocando] = useState(null)
+  const [senhaNova, setSenhaNova] = useState('')
+  const [removendo, setRemovendo] = useState('')
+  const [verSenha, setVerSenha] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const { recarregar } = useStore()
   const [erro, setErro] = useState('')
@@ -219,6 +226,13 @@ export default function Auditoria() {
       setDemoMsg(e.message)
     }
     setOcupado(false)
+  }
+  const acaoUsuario = async (fn, okMsg) => {
+    try { await fn(); setUMsg({ ok: true, t: okMsg }); setTrocando(null); setSenhaNova(''); setRemovendo(''); await atualizar() } catch (e) { setUMsg({ ok: false, t: e.message }) }
+  }
+  const criarUsuario = (ev) => {
+    ev.preventDefault()
+    acaoUsuario(async () => { await api.post('/auditoria/usuarios', { usuario: novo.usuario, senha: novo.senha }); setNovo({ usuario: '', senha: '' }) }, 'Usuário criado. Ele já pode entrar com o usuário e a senha informados.')
   }
   const pct = (v) => String(v).replace('.', ',') + '%'
   const dataHora = (iso) => new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
@@ -271,7 +285,7 @@ export default function Auditoria() {
         <h2 style={{ fontSize: 18, marginBottom: 10 }}>Usuários com acesso</h2>
         <div className="card tbl-wrap">
           <table>
-            <thead><tr><th>Usuário</th><th>Papel</th><th>Criado em</th><th>Último acesso</th><th>Alterações feitas</th></tr></thead>
+            <thead><tr><th>Usuário</th><th>Papel</th><th>Criado em</th><th>Último acesso</th><th>Alterações feitas</th><th>Ações</th></tr></thead>
             <tbody>
               {usuarios.map((u) => (
                 <tr key={u.usuario}>
@@ -280,11 +294,46 @@ export default function Auditoria() {
                   <td>{quando(u.criado_em)}</td>
                   <td>{u.ultimo_acesso ? quando(u.ultimo_acesso) : <span className="muted">nunca</span>}</td>
                   <td>{u.alteracoes}</td>
+                  <td>
+                    {u.fixo || u.papel === 'analista' ? <span className="muted" style={{ fontSize: 12 }}>definido no servidor</span>
+                      : trocando === u.usuario ? (
+                        <span className="row">
+                          <input type="text" autoComplete="off" placeholder="nova senha (mín. 6)" value={senhaNova} onChange={(e) => setSenhaNova(e.target.value)} style={{ width: 160 }} />
+                          <button className="btn primary" onClick={() => acaoUsuario(() => api.put('/auditoria/usuarios/' + encodeURIComponent(u.usuario) + '/senha', { senha: senhaNova }), 'Senha de ' + u.usuario + ' alterada.')}>Salvar</button>
+                          <button className="btn" onClick={() => { setTrocando(null); setSenhaNova('') }}>Cancelar</button>
+                        </span>
+                      ) : removendo === u.usuario ? (
+                        <span className="row">
+                          <button className="btn red" onClick={() => acaoUsuario(() => api.del('/auditoria/usuarios/' + encodeURIComponent(u.usuario)), 'Usuário ' + u.usuario + ' removido.')}>Confirmar remoção</button>
+                          <button className="btn" onClick={() => setRemovendo('')}>Cancelar</button>
+                        </span>
+                      ) : (
+                        <span className="row">
+                          <button className="btn" onClick={() => { setTrocando(u.usuario); setRemovendo(''); setSenhaNova('') }}>Trocar senha</button>
+                          <button className="btn" onClick={() => { setRemovendo(u.usuario); setTrocando(null) }}>Remover</button>
+                        </span>
+                      )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <form className="card" onSubmit={criarUsuario} style={{ marginTop: 14 }}>
+          <h3 style={{ marginTop: 0 }}>Criar novo usuário</h3>
+          <div className="row" style={{ alignItems: 'flex-end' }}>
+            <label style={{ flex: 1, minWidth: 200 }}>Usuário (e-mail ou nome de acesso)
+              <input value={novo.usuario} onChange={(e) => setNovo({ ...novo, usuario: e.target.value })} autoComplete="off" placeholder="ex.: maria@empresa.com" required />
+            </label>
+            <label style={{ flex: 1, minWidth: 200 }}>Senha (mínimo 6 caracteres)
+              <input type={verSenha ? 'text' : 'password'} value={novo.senha} onChange={(e) => setNovo({ ...novo, senha: e.target.value })} autoComplete="new-password" required minLength={6} />
+            </label>
+            <button type="button" className="btn" onClick={() => setVerSenha(!verSenha)}>{verSenha ? 'Ocultar' : 'Ver senha'}</button>
+            <button type="submit" className="btn primary">Criar usuário</button>
+          </div>
+          <div className="muted" style={{ fontSize: 12, marginTop: 8 }}>O novo usuário vê Dashboard, Empréstimos e o Manual (não vê a Auditoria). Ao remover, o acesso é cortado na hora. Anote a senha e passe ao usuário: ela não pode ser consultada depois, só trocada.</div>
+          {uMsg.t && <div className={uMsg.ok ? 'pos' : 'neg'} style={{ marginTop: 8 }} role="status">{uMsg.t}</div>}
+        </form>
       </section>
 
       <section ref={reg('sla')}>
